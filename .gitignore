@@ -1,0 +1,11 @@
+# Dependencies and generated framework output
+node_modules/
+.next/
+
+# Local environment and tooling output
+.env*
+!.env.example
+*.tsbuildinfo
+
+# Operating system files
+.DS_Store
