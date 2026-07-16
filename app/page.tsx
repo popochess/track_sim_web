@@ -1162,8 +1162,8 @@ export default function Home() {
         </button>
       </aside> : null}
 
-      <section className="workspace">
-        <header className="topbar">
+      <section className={`workspace workspace-${viewMode}`}>
+        <header className={`topbar topbar-${viewMode}`}>
           <div className="workspace-heading">
             <div>
               <p className="eyebrow">{viewMode === "2d" ? "2D playground" : "3D layout view"}</p>
@@ -2336,8 +2336,11 @@ function SimulatedTrain({
                   className="train-e500-windscreen"
                   d={`M ${halfLength - 16} ${-halfWidth + 5} H ${halfLength - 5} L ${halfLength - 3} ${-halfWidth + 8} V ${halfWidth - 8} L ${halfLength - 5} ${halfWidth - 5} H ${halfLength - 16} Z`}
                 />
+                <circle className="train-e500-marker-light" cx={halfLength - 7} cy={-2.5} r={1.35} />
+                <circle className="train-e500-marker-light" cx={halfLength - 7} cy={2.5} r={1.35} />
                 <circle className="train-headlight" cx={halfLength - 4.5} cy={-7.1} r={1.7} />
                 <circle className="train-headlight" cx={halfLength - 4.5} cy={7.1} r={1.7} />
+                <text className="train-r-logo" x={halfLength - 14} y={2.7}>R</text>
                 <text className="train-e500-mark" x={-halfLength + 12} y={3.5}>E500</text>
               </>
             ) : null}

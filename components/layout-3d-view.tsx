@@ -76,11 +76,12 @@ export function Layout3DView({
     const host = hostRef.current;
     if (!host) return;
 
+    const sceneExtent = Math.hypot(layoutWidth, layoutHeight);
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xd8d8d8);
-    scene.fog = new THREE.Fog(0xd8d8d8, 1500, 4200);
+    scene.fog = new THREE.Fog(0xd8d8d8, sceneExtent * 3, sceneExtent * 7);
 
-    const camera = new THREE.PerspectiveCamera(42, 1, 1, 8000);
+    const camera = new THREE.PerspectiveCamera(42, 1, 1, sceneExtent * 9);
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -96,7 +97,7 @@ export function Layout3DView({
     controls.dampingFactor = 0.08;
     controls.screenSpacePanning = true;
     controls.minDistance = 120;
-    controls.maxDistance = 4200;
+    controls.maxDistance = Math.max(4200, sceneExtent * 3.5);
     controls.maxPolarAngle = Math.PI * 0.49;
     positionCamera(camera, controls, layoutWidth, layoutHeight);
 
@@ -719,7 +720,7 @@ function createTrainCar(lead: boolean) {
 
   if (lead) {
     const cab = new THREE.Mesh(
-      new THREE.BoxGeometry(19, 9, 18.8),
+      new THREE.BoxGeometry(20, 9, 18.8),
       darkMaterial
     );
     cab.position.set(TRAIN_CAR_LENGTH_MM / 2 - 9.5, 13, 0);
@@ -727,10 +728,10 @@ function createTrainCar(lead: boolean) {
     group.add(cab);
 
     const windscreen = new THREE.Mesh(
-      new THREE.BoxGeometry(1.1, 6, 12.5),
+      new THREE.BoxGeometry(0.7, 6, 12.5),
       windowMaterial
     );
-    windscreen.position.set(TRAIN_CAR_LENGTH_MM / 2 + 0.15, 14, 0);
+    windscreen.position.set(TRAIN_CAR_LENGTH_MM / 2 + 0.95, 14, 0);
     group.add(windscreen);
 
     for (const z of [-9.45, 9.45]) {
@@ -741,6 +742,42 @@ function createTrainCar(lead: boolean) {
       cabWindow.position.set(TRAIN_CAR_LENGTH_MM / 2 - 10, 14, z);
       group.add(cabWindow);
     }
+
+    const lampBezelMaterial = new THREE.MeshStandardMaterial({
+      color: 0x111315,
+      roughness: 0.32,
+      metalness: 0.5
+    });
+    const lampMaterial = new THREE.MeshBasicMaterial({ color: 0xffffd1 });
+    for (const z of [-5.7, 5.7]) {
+      const bezel = new THREE.Mesh(
+        new THREE.CylinderGeometry(2.2, 2.2, 0.55, 16),
+        lampBezelMaterial
+      );
+      bezel.rotation.z = -Math.PI / 2;
+      bezel.position.set(TRAIN_CAR_LENGTH_MM / 2 + 0.75, 8.4, z);
+      group.add(bezel);
+
+      const lens = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.38, 1.38, 0.62, 16),
+        lampMaterial
+      );
+      lens.rotation.z = -Math.PI / 2;
+      lens.position.set(TRAIN_CAR_LENGTH_MM / 2 + 1.15, 8.4, z);
+      group.add(lens);
+    }
+    for (const z of [-2.45, 2.45]) {
+      const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(1.15, 12, 8),
+        lampMaterial
+      );
+      marker.position.set(TRAIN_CAR_LENGTH_MM / 2 + 0.9, 17.5, z);
+      group.add(marker);
+    }
+
+    const logo = createE500Logo();
+    logo.position.set(TRAIN_CAR_LENGTH_MM / 2 + 1.3, 8.3, 0);
+    group.add(logo);
 
     for (const x of [-24, 4, 28]) {
       const equipment = new THREE.Mesh(
@@ -768,15 +805,6 @@ function createTrainCar(lead: boolean) {
     const frame = new THREE.Mesh(new THREE.BoxGeometry(20, 3.5, 17), darkMaterial);
     frame.position.y = -1;
     bogie.add(frame);
-    for (const z of [-7.7, 7.7]) {
-      const wheel = new THREE.Mesh(
-        new THREE.CylinderGeometry(3.6, 3.6, 1.1, 12),
-        darkMaterial
-      );
-      wheel.rotation.x = Math.PI / 2;
-      wheel.position.set(-5, -3, z);
-      bogie.add(wheel);
-    }
     bogie.position.x = x;
     group.add(bogie);
   }
@@ -784,15 +812,8 @@ function createTrainCar(lead: boolean) {
   if (lead) {
     const headlights = new THREE.Group();
     for (const z of [-5.4, 5.4]) {
-      const lens = new THREE.Mesh(
-        new THREE.SphereGeometry(1.45, 10, 8),
-        new THREE.MeshBasicMaterial({ color: 0xffffc7 })
-      );
-      lens.position.set(TRAIN_CAR_LENGTH_MM / 2 + 0.8, 13.5, z);
-      headlights.add(lens);
-
       const light = new THREE.PointLight(0xffe0a6, 3.4, 110, 1.8);
-      light.position.set(TRAIN_CAR_LENGTH_MM / 2 + 4, 13.5, z);
+      light.position.set(TRAIN_CAR_LENGTH_MM / 2 + 4.5, 8.4, z);
       headlights.add(light);
     }
     headlights.visible = false;
@@ -800,6 +821,32 @@ function createTrainCar(lead: boolean) {
     group.add(headlights);
   }
   return group;
+}
+
+function createE500Logo() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const context = canvas.getContext("2d");
+  if (!context) return new THREE.Group();
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#ffffff";
+  context.font = "italic 900 92px Arial, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText("R", 63, 68);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const logo = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 5.5), material);
+  logo.rotation.y = Math.PI / 2;
+  return logo;
 }
 
 function clearGroup(group: THREE.Group) {
