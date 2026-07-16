@@ -18,6 +18,10 @@ export type TrainRoute = {
   totalLength: number;
   segmentCount: number;
   closed: boolean;
+  debug?: {
+    anchor: string;
+    traversal: string[];
+  };
 };
 
 export type TrainRouteAnchor = {
@@ -43,6 +47,7 @@ export type TurnoutIndicator = {
 };
 
 type RouteSegment = {
+  debugLabel: string;
   points: SimulationPoint[];
   length: number;
   startNode: number;
@@ -53,6 +58,7 @@ type RouteSegment = {
 };
 
 type RoutePolyline = {
+  debugLabel: string;
   points: SimulationPoint[];
   allowsForward: boolean;
   allowsBackward: boolean;
@@ -122,6 +128,7 @@ export function buildTrainRoute(
     const startNode = getNode(index * 2);
     const endNode = getNode(index * 2 + 1);
     segments.push({
+      debugLabel: polyline.debugLabel,
       points,
       length: polylineLength(points),
       startNode,
@@ -277,6 +284,7 @@ function buildRouteTrackPolylines(
 
     if (track.kind !== "turnout") {
       return [{
+        debugLabel: `${track.code} (${item.id.slice(-5)})`,
         points: transform(getTrackCenterline(track)),
         allowsForward: true,
         allowsBackward: true,
@@ -290,6 +298,7 @@ function buildRouteTrackPolylines(
       const route = index === 0 ? "main" : "branch";
       const selected = route === selectedRoute;
       return {
+        debugLabel: `${track.code} (${item.id.slice(-5)}) ${route}`,
         points: transform(points),
         // Facing a point only permits the route selected by its controller.
         // Trailing through either outer leg into the common leg is always valid.
@@ -553,7 +562,15 @@ function buildAnchoredTrainRoute(
     y: anchor.heading.y / headingLength
   };
   let best:
-    | { index: number; forward: boolean; pointIndex: number; point: SimulationPoint; score: number }
+    | {
+        index: number;
+        forward: boolean;
+        pointIndex: number;
+        point: SimulationPoint;
+        score: number;
+        distance: number;
+        alignment: number;
+      }
     | null = null;
 
   for (let index = 0; index < segments.length; index += 1) {
@@ -578,7 +595,9 @@ function buildAnchoredTrainRoute(
           forward,
           pointIndex: directionIndex,
           point: closest.point,
-          score
+          score,
+          distance: closest.distance,
+          alignment
         };
       }
     }
@@ -597,6 +616,7 @@ function buildAnchoredTrainRoute(
   let currentNode = best.forward ? firstSegment.endNode : firstSegment.startNode;
   const returnNode = best.forward ? firstSegment.startNode : firstSegment.endNode;
   let closed = false;
+  const traversal = [describeSegment(firstSegment, best.forward)];
 
   // A point network can have several plausible-looking continuations. Search
   // for a directed path back to the other side of the anchored segment before
@@ -609,6 +629,7 @@ function buildAnchoredTrainRoute(
     used
   );
   if (closingPath) {
+    const traversal = [describeSegment(firstSegment, best.forward)];
     for (const step of closingPath) {
       const segment = segments[step.index];
       appendPoints(
@@ -616,6 +637,7 @@ function buildAnchoredTrainRoute(
         step.forward ? segment.points : [...segment.points].reverse()
       );
       used.add(step.index);
+      traversal.push(describeSegment(segment, step.forward));
     }
     appendPoints(
       orderedPoints,
@@ -627,7 +649,11 @@ function buildAnchoredTrainRoute(
       cumulative,
       totalLength: cumulative[cumulative.length - 1] ?? 0,
       segmentCount: used.size,
-      closed: true
+      closed: true,
+      debug: {
+        anchor: describeAnchorDecision(firstSegment, best),
+        traversal
+      }
     };
   }
 
@@ -653,6 +679,7 @@ function buildAnchoredTrainRoute(
     const forward = segment.startNode === currentNode;
     appendPoints(orderedPoints, forward ? segment.points : [...segment.points].reverse());
     used.add(segmentIndex);
+    traversal.push(describeSegment(segment, forward));
     currentNode = forward ? segment.endNode : segment.startNode;
   }
 
@@ -662,8 +689,28 @@ function buildAnchoredTrainRoute(
     cumulative,
     totalLength: cumulative[cumulative.length - 1] ?? 0,
     segmentCount: used.size,
-    closed
+    closed,
+    debug: {
+      anchor: describeAnchorDecision(firstSegment, best),
+      traversal
+    }
   };
+}
+
+function describeSegment(segment: RouteSegment, forward: boolean) {
+  return `${segment.debugLabel} ${forward ? "forward" : "reverse"}`;
+}
+
+function describeAnchorDecision(
+  segment: RouteSegment,
+  best: {
+    forward: boolean;
+    distance: number;
+    alignment: number;
+    score: number;
+  }
+) {
+  return `${describeSegment(segment, best.forward)}; nearest=${best.distance.toFixed(2)}mm; alignment=${best.alignment.toFixed(3)}; score=${best.score.toFixed(2)}`;
 }
 
 function closestPointOnPolyline(points: SimulationPoint[], point: SimulationPoint) {

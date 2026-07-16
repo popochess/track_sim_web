@@ -5,8 +5,11 @@ import {
   ArrowLeft,
   ArrowRight,
   Box,
+  Check,
   ChevronDown,
   CircleDot,
+  Copy,
+  Download,
   Eye,
   EyeOff,
   GitFork,
@@ -25,6 +28,7 @@ import {
   Trash2,
   Undo2,
   Sun,
+  Upload,
   ZoomIn,
   ZoomOut
 } from "lucide-react";
@@ -76,6 +80,13 @@ type LayoutSnapshot = {
 type LayoutHistory = {
   past: LayoutSnapshot[];
   future: LayoutSnapshot[];
+};
+
+type LayoutExportFile = {
+  format: "tomix-layout-planner";
+  version: 1;
+  exportedAt: string;
+  layout: LayoutSnapshot;
 };
 
 type DragState = {
@@ -182,6 +193,12 @@ export default function Home() {
   const [trainDirection, setTrainDirection] = useState<1 | -1>(1);
   const [trainStopReason, setTrainStopReason] = useState("尚未啟動列車");
   const [trainDebugEvents, setTrainDebugEvents] = useState<TrainDebugEvent[]>([]);
+  const [trainDebugCopyState, setTrainDebugCopyState] = useState<
+    "idle" | "copied" | "failed"
+  >("idle");
+  const [layoutFileStatus, setLayoutFileStatus] = useState<
+    "idle" | "exported" | "imported" | "error"
+  >("idle");
   const [placingTrain, setPlacingTrain] = useState(false);
   const [trainRouteAnchor, setTrainRouteAnchor] = useState<TrainRouteAnchor | null>(null);
   const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
@@ -196,6 +213,7 @@ export default function Home() {
   const trainDebugSequenceRef = useRef(0);
   const trainDebugInitializedRef = useRef(false);
   const terminalStopReportedRef = useRef(false);
+  const layoutFileInputRef = useRef<HTMLInputElement | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
 
   const trackMap = useMemo(
@@ -238,6 +256,8 @@ export default function Home() {
       `direction: ${trainDirection === 1 ? "right" : "left"}`,
       `speed: ${trainSpeed} mm/s`,
       `anchor: ${trainRouteAnchor ? `${formatPoint(trainRouteAnchor.point.x)}, ${formatPoint(trainRouteAnchor.point.y)}` : "none"}`,
+      `anchor decision: ${trainRoute.debug?.anchor ?? "no anchor route decision"}`,
+      `route trace: ${trainRoute.debug?.traversal.join(" -> ") ?? "not recorded"}`,
       `points: ${pointStates.length > 0 ? pointStates.join(" | ") : "none"}`,
       "",
       "timeline:",
@@ -248,6 +268,42 @@ export default function Home() {
         : ["(waiting for layout initialization)"])
     ].join("\n");
   }, [placed, trackMap, trainDebugEvents, trainDirection, trainDistance, trainRoute, trainRouteAnchor, trainRunning, trainSpeed, trainStopReason]);
+
+  const copyTrainDebugReport = useCallback(async () => {
+    let copied = false;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(trainDebugReport);
+        copied = true;
+      }
+    } catch {
+      // Embedded browsers can deny Clipboard permission. Use the selection fallback below.
+    }
+
+    if (!copied) {
+      const fallback = document.createElement("textarea");
+      fallback.value = trainDebugReport;
+      fallback.setAttribute("readonly", "");
+      fallback.style.position = "fixed";
+      fallback.style.opacity = "0";
+      fallback.style.pointerEvents = "none";
+      document.body.appendChild(fallback);
+      fallback.select();
+      fallback.setSelectionRange(0, fallback.value.length);
+
+      try {
+        copied = document.execCommand("copy");
+      } catch {
+        copied = false;
+      }
+
+      fallback.remove();
+    }
+
+    setTrainDebugCopyState(copied ? "copied" : "failed");
+    window.setTimeout(() => setTrainDebugCopyState("idle"), 1800);
+  }, [trainDebugReport]);
 
   const selectedTrack = trackMap.get(selectedTrackId) ?? TOMIX_TRACKS[0];
   const selectedSet =
@@ -339,7 +395,7 @@ export default function Home() {
     if (hasRestoredSavedLayout) {
       appendTrainDebugEvent(
         "route recalculated",
-        `${trainRoute.closed ? "closed" : "open"}; segments=${trainRoute.segmentCount}; length=${trainRoute.totalLength.toFixed(1)} mm; anchor=${trainRouteAnchor ? "active" : "none"}`
+        `${trainRoute.closed ? "closed" : "open"}; segments=${trainRoute.segmentCount}; length=${trainRoute.totalLength.toFixed(1)} mm; anchor=${trainRouteAnchor ? "active" : "none"}; ${trainRoute.debug?.anchor ?? "no anchor decision"}; trace=${trainRoute.debug?.traversal.join(" -> ") ?? "not recorded"}`
       );
     }
   }, [appendTrainDebugEvent, hasRestoredSavedLayout, trainRoute, trainRouteAnchor]);
@@ -425,6 +481,61 @@ export default function Home() {
       return false;
     }
   }, [layoutHeight, layoutWidth, panOffset, placed, selectedPlacedIds, zoom]);
+
+  const clearLayoutFileStatus = useCallback(() => {
+    window.setTimeout(() => setLayoutFileStatus("idle"), 2200);
+  }, []);
+
+  const exportLayoutFile = useCallback(() => {
+    const payload: LayoutExportFile = {
+      format: "tomix-layout-planner",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      layout: createSnapshot()
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json"
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const stamp = payload.exportedAt.replace(/[:.]/g, "-");
+    link.href = url;
+    link.download = `tomix-layout-${stamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setLayoutFileStatus("exported");
+    clearLayoutFileStatus();
+  }, [clearLayoutFileStatus, createSnapshot]);
+
+  const importLayoutFile = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+
+      try {
+        const parsed = JSON.parse(await file.text()) as Partial<LayoutExportFile> | LayoutSnapshot;
+        const source =
+          typeof parsed === "object" && parsed !== null && "layout" in parsed
+            ? (parsed as Partial<LayoutExportFile>).layout
+            : parsed;
+        const imported = readStoredLayout(JSON.stringify(source), trackMap);
+        if (!imported) throw new Error("invalid layout file");
+
+        restoreSnapshot(imported);
+        setHistory({ past: [], future: [] });
+        localStorage.setItem(layoutStorageKey, JSON.stringify(imported));
+        setLayoutFileStatus("imported");
+      } catch {
+        setLayoutFileStatus("error");
+      }
+
+      clearLayoutFileStatus();
+    },
+    [clearLayoutFileStatus, restoreSnapshot, trackMap]
+  );
 
   useEffect(() => {
     try {
@@ -1405,6 +1516,37 @@ export default function Home() {
               />
             </label>
           </div>
+          <div className="layout-file-actions">
+            <button type="button" onClick={exportLayoutFile} title="下載目前配置專案檔">
+              <Download size={15} />
+              匯出配置
+            </button>
+            <button
+              type="button"
+              onClick={() => layoutFileInputRef.current?.click()}
+              title="從專案檔匯入配置"
+            >
+              <Upload size={15} />
+              匯入配置
+            </button>
+            <input
+              ref={layoutFileInputRef}
+              className="layout-file-input"
+              type="file"
+              accept="application/json,.json"
+              onChange={importLayoutFile}
+              aria-label="匯入 Tomix 配置檔"
+            />
+          </div>
+          {layoutFileStatus !== "idle" ? (
+            <p className={`layout-file-status ${layoutFileStatus}`} role="status">
+              {layoutFileStatus === "exported"
+                ? "配置檔已下載"
+                : layoutFileStatus === "imported"
+                  ? "配置已匯入"
+                  : "無法讀取此配置檔"}
+            </p>
+          ) : null}
         </section>
 
         <section className="panel train-inspector-panel" aria-label="列車控制">
@@ -1495,6 +1637,21 @@ export default function Home() {
           </p>
           <details className="train-debug-panel" open>
             <summary>Debug log</summary>
+            <div className="train-debug-actions">
+              <button
+                className={`train-debug-copy ${trainDebugCopyState}`}
+                type="button"
+                onClick={copyTrainDebugReport}
+                title="複製完整 Debug log"
+              >
+                {trainDebugCopyState === "copied" ? <Check size={14} /> : <Copy size={14} />}
+                {trainDebugCopyState === "copied"
+                  ? "已複製"
+                  : trainDebugCopyState === "failed"
+                    ? "複製失敗"
+                    : "複製 log"}
+              </button>
+            </div>
             <textarea readOnly value={trainDebugReport} aria-label="列車模擬 Debug log" />
           </details>
         </section>
@@ -2144,8 +2301,8 @@ function SimulatedTrain({
   if (!cars[0]) return null;
 
   const halfLength = TRAIN_CAR_LENGTH_MM / 2;
-  const halfWidth = 11;
-  const roofEquipment = [-34, 0, 34];
+  const halfWidth = 12;
+  const roofEquipment = [-28, 5, 31];
 
   return (
     <g
@@ -2162,14 +2319,28 @@ function SimulatedTrain({
           >
             <rect className="train-car-shadow" x={-halfLength} y={-halfWidth} width={TRAIN_CAR_LENGTH_MM} height={halfWidth * 2} rx={4} />
             <rect className="train-car-body" x={-halfLength} y={-halfWidth} width={TRAIN_CAR_LENGTH_MM} height={halfWidth * 2} rx={4} />
-            <rect className="train-car-roof" x={-halfLength + 5} y={-7.5} width={TRAIN_CAR_LENGTH_MM - 10} height={15} rx={3} />
-            <path className="train-car-roof-centerline" d={`M ${-halfLength + 9} 0 H ${halfLength - 9}`} />
+            <rect className="train-car-underframe" x={-halfLength + 5} y={-halfWidth + 2} width={TRAIN_CAR_LENGTH_MM - 10} height={5} rx={1.5} />
+            <rect className="train-car-roof" x={-halfLength + 8} y={-8.5} width={TRAIN_CAR_LENGTH_MM - 19} height={17} rx={3} />
+            <path className="train-car-roof-centerline" d={`M ${-halfLength + 12} 0 H ${halfLength - 13}`} />
             {roofEquipment.map((x) => (
               <rect key={x} className="train-car-roof-equipment" x={x - 7} y={-3.5} width={14} height={7} rx={1.2} />
             ))}
-            <path className="train-car-stripe" d={`M ${-halfLength + 4} ${halfWidth - 2} H ${halfLength - 4}`} />
-            <circle className="train-headlight" cx={halfLength - 3} cy={-6.4} r={1.6} />
-            <circle className="train-headlight" cx={halfLength - 3} cy={6.4} r={1.6} />
+            <path className="train-car-stripe" d={`M ${-halfLength + 7} ${halfWidth - 3} H ${halfLength - 9}`} />
+            {index === 0 ? (
+              <>
+                <path
+                  className="train-e500-cab"
+                  d={`M ${halfLength - 20} ${-halfWidth + 2} H ${halfLength - 4} L ${halfLength - 1} ${-halfWidth + 7} V ${halfWidth - 7} L ${halfLength - 4} ${halfWidth - 2} H ${halfLength - 20} Z`}
+                />
+                <path
+                  className="train-e500-windscreen"
+                  d={`M ${halfLength - 16} ${-halfWidth + 5} H ${halfLength - 5} L ${halfLength - 3} ${-halfWidth + 8} V ${halfWidth - 8} L ${halfLength - 5} ${halfWidth - 5} H ${halfLength - 16} Z`}
+                />
+                <circle className="train-headlight" cx={halfLength - 4.5} cy={-7.1} r={1.7} />
+                <circle className="train-headlight" cx={halfLength - 4.5} cy={7.1} r={1.7} />
+                <text className="train-e500-mark" x={-halfLength + 12} y={3.5}>E500</text>
+              </>
+            ) : null}
           </g>
         ) : null
       )}

@@ -189,6 +189,53 @@ h2 {
   gap: 10px;
 }
 
+.layout-file-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.layout-file-actions button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.layout-file-actions button:hover {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+.layout-file-input {
+  display: none;
+}
+
+.layout-file-status {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.layout-file-status.exported,
+.layout-file-status.imported {
+  color: var(--accent-dark);
+}
+
+.layout-file-status.error {
+  color: var(--accent-dark);
+}
+
 label span {
   display: block;
   margin-bottom: 6px;
@@ -618,11 +665,47 @@ input {
   font-weight: 850;
 }
 
+.train-debug-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.train-debug-copy {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 850;
+  padding: 0 8px;
+}
+
+.train-debug-copy:hover {
+  border-color: var(--accent);
+}
+
+.train-debug-copy.copied {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.train-debug-copy.failed {
+  border-color: var(--accent-dark);
+  color: var(--accent-dark);
+}
+
 .train-debug-panel textarea {
   box-sizing: border-box;
   width: 100%;
   min-height: 164px;
-  margin-top: 8px;
+  margin-top: 6px;
   resize: vertical;
   border: 1px solid var(--line);
   border-radius: 5px;
@@ -1007,19 +1090,27 @@ input {
 }
 
 .train-car-body {
-  fill: #e6e6e6;
+  fill: #c9c9c9;
   stroke: #202020;
   stroke-width: 1.4;
   vector-effect: non-scaling-stroke;
 }
 
 .train-car-lead .train-car-body {
-  fill: var(--accent);
+  fill: #ed5d1c;
+}
+
+.train-car-underframe {
+  fill: #171717;
+}
+
+.train-car-lead .train-car-underframe {
+  fill: #242424;
 }
 
 .train-car-stripe {
   fill: none;
-  stroke: #8b8b8b;
+  stroke: #f6a23a;
   stroke-width: 2.2;
   vector-effect: non-scaling-stroke;
 }
@@ -1039,17 +1130,42 @@ input {
 }
 
 .train-car-roof-equipment {
-  fill: #bdbdbd;
-  stroke: #5a5a5a;
+  fill: #a6a6a6;
+  stroke: #464646;
   stroke-width: 0.8;
   vector-effect: non-scaling-stroke;
 }
 
+.train-e500-cab {
+  fill: #25292b;
+  stroke: #141414;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.train-e500-windscreen {
+  fill: #6e8086;
+  stroke: #b9d1d8;
+  stroke-width: 0.7;
+  vector-effect: non-scaling-stroke;
+}
+
 .train-headlight {
-  fill: #f5f5f5;
-  stroke: #555555;
+  fill: #ffd35b;
+  stroke: #7d4b08;
   stroke-width: 0.5;
   vector-effect: non-scaling-stroke;
+}
+
+.train-e500-mark {
+  fill: #f4f4f4;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 5px;
+  font-weight: 800;
+  letter-spacing: 0;
+  paint-order: stroke;
+  stroke: #1b1b1b;
+  stroke-width: 0.75px;
 }
 
 .placed-track.active .track-bed,

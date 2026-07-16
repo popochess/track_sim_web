@@ -666,60 +666,133 @@ function extendPolylineEnds(points: THREE.Vector3[], distance: number) {
 function createTrainCar(lead: boolean) {
   const group = new THREE.Group();
   const bodyMaterial = new THREE.MeshStandardMaterial({
-    color: lead ? 0xee6a24 : 0xe6e6e6,
-    roughness: 0.45,
-    metalness: 0.18
+    color: lead ? 0xed5d1c : 0xc7c7c7,
+    roughness: 0.43,
+    metalness: 0.2
   });
   const darkMaterial = new THREE.MeshStandardMaterial({
-    color: 0x303030,
+    color: 0x24282a,
     roughness: 0.25,
     metalness: 0.42
   });
-  const stripeMaterial = new THREE.MeshStandardMaterial({ color: 0x8b8b8b });
+  const windowMaterial = new THREE.MeshStandardMaterial({
+    color: 0x172126,
+    roughness: 0.16,
+    metalness: 0.58
+  });
+  const stripeMaterial = new THREE.MeshStandardMaterial({
+    color: 0xf5a13a,
+    roughness: 0.35,
+    metalness: 0.18
+  });
 
   const body = new THREE.Mesh(
-    new THREE.BoxGeometry(TRAIN_CAR_LENGTH_MM, 14, 16),
+    new THREE.BoxGeometry(TRAIN_CAR_LENGTH_MM, 15, 18),
     bodyMaterial
   );
   body.castShadow = true;
-  body.position.y = 7;
+  body.position.y = 8.5;
   group.add(body);
 
-  const roof = new THREE.Mesh(
-    new THREE.BoxGeometry(TRAIN_CAR_LENGTH_MM - 6, 3, 14),
+  const underframe = new THREE.Mesh(
+    new THREE.BoxGeometry(TRAIN_CAR_LENGTH_MM - 8, 4, 16),
     darkMaterial
   );
-  roof.position.y = 15.5;
+  underframe.position.y = 1.5;
+  underframe.castShadow = true;
+  group.add(underframe);
+
+  const roof = new THREE.Mesh(
+    new THREE.BoxGeometry(TRAIN_CAR_LENGTH_MM - 16, 4, 15),
+    darkMaterial
+  );
+  roof.position.y = 18;
   roof.castShadow = true;
   group.add(roof);
 
   const stripe = new THREE.Mesh(
-    new THREE.BoxGeometry(TRAIN_CAR_LENGTH_MM - 4, 2, 16.4),
+    new THREE.BoxGeometry(TRAIN_CAR_LENGTH_MM - 8, 2, 18.5),
     stripeMaterial
   );
-  stripe.position.y = 5;
+  stripe.position.y = 6;
   group.add(stripe);
 
-  for (const x of [-48, -29, -10, 10, 29, 48]) {
-    for (const z of [-8.25, 8.25]) {
-      const window = new THREE.Mesh(new THREE.BoxGeometry(14, 5, 0.8), darkMaterial);
-      window.position.set(x, 9, z);
-      group.add(window);
+  if (lead) {
+    const cab = new THREE.Mesh(
+      new THREE.BoxGeometry(19, 9, 18.8),
+      darkMaterial
+    );
+    cab.position.set(TRAIN_CAR_LENGTH_MM / 2 - 9.5, 13, 0);
+    cab.castShadow = true;
+    group.add(cab);
+
+    const windscreen = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1, 6, 12.5),
+      windowMaterial
+    );
+    windscreen.position.set(TRAIN_CAR_LENGTH_MM / 2 + 0.15, 14, 0);
+    group.add(windscreen);
+
+    for (const z of [-9.45, 9.45]) {
+      const cabWindow = new THREE.Mesh(
+        new THREE.BoxGeometry(10, 5.5, 0.75),
+        windowMaterial
+      );
+      cabWindow.position.set(TRAIN_CAR_LENGTH_MM / 2 - 10, 14, z);
+      group.add(cabWindow);
     }
+
+    for (const x of [-24, 4, 28]) {
+      const equipment = new THREE.Mesh(
+        new THREE.BoxGeometry(14, 2.2, 7),
+        new THREE.MeshStandardMaterial({ color: 0x8f9697, roughness: 0.55 })
+      );
+      equipment.position.set(x, 21.1, 0);
+      group.add(equipment);
+    }
+  } else {
+    for (const x of [-47, -28, -9, 10, 29, 48]) {
+      for (const z of [-9.45, 9.45]) {
+        const window = new THREE.Mesh(
+          new THREE.BoxGeometry(13.5, 5.4, 0.75),
+          windowMaterial
+        );
+        window.position.set(x, 12, z);
+        group.add(window);
+      }
+    }
+  }
+
+  for (const x of [-38, 38]) {
+    const bogie = new THREE.Group();
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(20, 3.5, 17), darkMaterial);
+    frame.position.y = -1;
+    bogie.add(frame);
+    for (const z of [-7.7, 7.7]) {
+      const wheel = new THREE.Mesh(
+        new THREE.CylinderGeometry(3.6, 3.6, 1.1, 12),
+        darkMaterial
+      );
+      wheel.rotation.x = Math.PI / 2;
+      wheel.position.set(-5, -3, z);
+      bogie.add(wheel);
+    }
+    bogie.position.x = x;
+    group.add(bogie);
   }
 
   if (lead) {
     const headlights = new THREE.Group();
     for (const z of [-5.4, 5.4]) {
       const lens = new THREE.Mesh(
-        new THREE.SphereGeometry(1.35, 10, 8),
-        new THREE.MeshBasicMaterial({ color: 0xfff1c1 })
+        new THREE.SphereGeometry(1.45, 10, 8),
+        new THREE.MeshBasicMaterial({ color: 0xffffc7 })
       );
-      lens.position.set(TRAIN_CAR_LENGTH_MM / 2 + 0.25, 8, z);
+      lens.position.set(TRAIN_CAR_LENGTH_MM / 2 + 0.8, 13.5, z);
       headlights.add(lens);
 
-      const light = new THREE.PointLight(0xffd58a, 2.8, 100, 1.8);
-      light.position.set(TRAIN_CAR_LENGTH_MM / 2 + 3, 8, z);
+      const light = new THREE.PointLight(0xffe0a6, 3.4, 110, 1.8);
+      light.position.set(TRAIN_CAR_LENGTH_MM / 2 + 4, 13.5, z);
       headlights.add(light);
     }
     headlights.visible = false;
