@@ -506,12 +506,12 @@ export function Layout3DView({
       >
         重設視角
       </button>
-      <div className="mobile-camera-pad" role="group" aria-label="移動 3D 相機視角">
+      <div className="mobile-direction-pad mobile-camera-pad" role="group" aria-label="移動 3D 相機視角">
         {([
-          ["arrowup", "向上移動視角", ArrowUp, "camera-move-up"],
-          ["arrowleft", "向左移動視角", ArrowLeft, "camera-move-left"],
-          ["arrowright", "向右移動視角", ArrowRight, "camera-move-right"],
-          ["arrowdown", "向下移動視角", ArrowDown, "camera-move-down"]
+          ["arrowup", "向上移動視角", ArrowUp, "direction-up"],
+          ["arrowleft", "向左移動視角", ArrowLeft, "direction-left"],
+          ["arrowright", "向右移動視角", ArrowRight, "direction-right"],
+          ["arrowdown", "向下移動視角", ArrowDown, "direction-down"]
         ] as const).map(([key, label, Icon, className]) => (
           <button
             className={className}

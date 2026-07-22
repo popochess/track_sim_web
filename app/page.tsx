@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   Box,
   Check,
   ChevronDown,
@@ -90,6 +92,8 @@ type MobileSheetDrag = {
   velocityY: number;
   sheet: HTMLElement;
 };
+
+type CanvasPanDirection = "up" | "down" | "left" | "right";
 
 type LayoutExportFile = {
   format: "tomix-layout-planner";
@@ -225,6 +229,9 @@ export default function Home() {
   const terminalStopReportedRef = useRef(false);
   const layoutFileInputRef = useRef<HTMLInputElement | null>(null);
   const mobileSheetDragRef = useRef<MobileSheetDrag | null>(null);
+  const canvasPanDirectionRef = useRef<CanvasPanDirection | null>(null);
+  const canvasPanFrameRef = useRef<number | null>(null);
+  const canvasPanLastTimeRef = useRef(0);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
 
   const trackMap = useMemo(
@@ -833,6 +840,57 @@ export default function Home() {
     setPanOffset({ x: 0, y: 0 });
   };
 
+  const moveCanvasFromPad = (direction: CanvasPanDirection, screenDistance: number) => {
+    const scale = getSvgScreenScale(canvasSize, viewWidth, viewHeight);
+    if (scale === 0) return;
+    const distance = screenDistance / scale;
+    const delta = {
+      x: direction === "left" ? -distance : direction === "right" ? distance : 0,
+      y: direction === "up" ? -distance : direction === "down" ? distance : 0
+    };
+    setPanOffset((offset) =>
+      clampPanOffset(
+        { x: offset.x + delta.x, y: offset.y + delta.y },
+        layoutWidth,
+        layoutHeight,
+        viewWidth,
+        viewHeight
+      )
+    );
+  };
+
+  const stopCanvasPan = (direction?: CanvasPanDirection) => {
+    if (direction && canvasPanDirectionRef.current !== direction) return;
+    canvasPanDirectionRef.current = null;
+    if (canvasPanFrameRef.current !== null) {
+      cancelAnimationFrame(canvasPanFrameRef.current);
+      canvasPanFrameRef.current = null;
+    }
+  };
+
+  const startCanvasPan = (
+    direction: CanvasPanDirection,
+    event: React.PointerEvent<HTMLButtonElement>
+  ) => {
+    event.preventDefault();
+    stopCanvasPan();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    canvasPanDirectionRef.current = direction;
+    canvasPanLastTimeRef.current = performance.now();
+    moveCanvasFromPad(direction, 36);
+
+    const panContinuously = (now: number) => {
+      if (canvasPanDirectionRef.current !== direction) return;
+      const deltaSeconds = Math.min(0.04, (now - canvasPanLastTimeRef.current) / 1000);
+      canvasPanLastTimeRef.current = now;
+      moveCanvasFromPad(direction, 520 * deltaSeconds);
+      canvasPanFrameRef.current = requestAnimationFrame(panContinuously);
+    };
+    canvasPanFrameRef.current = requestAnimationFrame(panContinuously);
+  };
+
+  useEffect(() => () => stopCanvasPan(), []);
+
   const updateDraggedTrack = (
     event: React.PointerEvent<SVGSVGElement>,
     dragState: DragState
@@ -1388,29 +1446,32 @@ export default function Home() {
             </div>
             {viewMode === "2d" ? (
               <div className="toolbar-group toolbar-zoom-group" role="group" aria-label="畫布縮放">
-                <button
-                  className="toolbar-icon-button"
-                  type="button"
-                  onClick={() => changeZoom(zoom - 0.05)}
-                  disabled={zoom <= 0.5}
-                  aria-label="縮小畫布"
-                  title="縮小"
-                >
+                <span className="topbar-zoom-icon" aria-hidden="true">
                   <ZoomOut size={17} />
-                </button>
-                <output className="topbar-zoom-value" aria-label="目前縮放比例">
+                </span>
+                <input
+                  className="topbar-zoom-slider"
+                  type="range"
+                  min={0.5}
+                  max={3}
+                  step={0.05}
+                  value={zoom}
+                  onChange={(event) => changeZoom(Number(event.target.value))}
+                  aria-label="畫布縮放比例"
+                  aria-valuetext={`${Math.round(zoom * 100)}%`}
+                  style={{
+                    "--zoom-position": `${((zoom - 0.5) / 2.5) * 100}%`
+                  } as React.CSSProperties}
+                />
+                <span className="topbar-zoom-icon" aria-hidden="true">
+                  <ZoomIn size={17} />
+                </span>
+                <output
+                  className="topbar-zoom-value"
+                  aria-label="目前縮放比例"
+                >
                   {Math.round(zoom * 100)}%
                 </output>
-                <button
-                  className="toolbar-icon-button"
-                  type="button"
-                  onClick={() => changeZoom(zoom + 0.05)}
-                  disabled={zoom >= 3}
-                  aria-label="放大畫布"
-                  title="放大"
-                >
-                  <ZoomIn size={17} />
-                </button>
               </div>
             ) : null}
             {viewMode === "3d" ? (
@@ -1634,19 +1695,106 @@ export default function Home() {
             viewHeight={viewHeight}
           />
 
-          <div className="canvas-mode-hint" role="status" aria-live="polite">
-            {panMode ? <Hand size={18} /> : <MousePointer2 size={18} />}
-            <span>
-              <strong>{panMode ? "拖移畫布" : "選取模式"}</strong>
-              <small>
-                {panMode
-                  ? "拖曳任意位置移動畫布，軌道不會被選取"
-                  : "點選軌道可移動、旋轉或刪除"}
-              </small>
-            </span>
+          <div className="mobile-direction-pad mobile-canvas-pan-pad" role="group" aria-label="移動 2D 畫布">
+            {([
+              ["up", "查看畫布上方", ArrowUp, "direction-up"],
+              ["left", "查看畫布左側", ArrowLeft, "direction-left"],
+              ["right", "查看畫布右側", ArrowRight, "direction-right"],
+              ["down", "查看畫布下方", ArrowDown, "direction-down"]
+            ] as const).map(([direction, label, Icon, className]) => (
+              <button
+                className={className}
+                type="button"
+                key={direction}
+                aria-label={label}
+                title={label}
+                onPointerDown={(event) => startCanvasPan(direction, event)}
+                onPointerUp={() => stopCanvasPan(direction)}
+                onPointerCancel={() => stopCanvasPan(direction)}
+                onLostPointerCapture={() => stopCanvasPan(direction)}
+              >
+                <Icon size={19} strokeWidth={2.25} />
+              </button>
+            ))}
           </div>
 
-          <div className="canvas-view-controls" role="group" aria-label="畫布檢視控制">
+          {selectedPlacedIds.length > 0 ? (
+            <section
+              className="canvas-mode-hint canvas-selection-summary"
+              aria-label="選取資訊"
+              aria-live="polite"
+            >
+              <MousePointer2 size={18} />
+              <span>
+                <strong>
+                  選取資訊
+                  <em>
+                    {selectedPlacedIds.length > 1
+                      ? `${selectedPlacedIds.length} 段`
+                      : selectedPlacedDef?.code ?? "1 段"}
+                  </em>
+                </strong>
+                <small>
+                  {selectedPlacedIds.length > 1
+                    ? `${selectedTrackDetails.slice(0, 3).map((track) => track.code).join(" · ")}${selectedTrackDetails.length > 3 ? ` · +${selectedTrackDetails.length - 3}` : ""}`
+                    : selectedPlaced
+                      ? `X ${selectedPlaced.x} · Y ${selectedPlaced.y} mm · ${selectedPlaced.rotation}°`
+                      : "已選取軌道"}
+                </small>
+              </span>
+              <div className="canvas-selection-actions" role="group" aria-label="選取軌道操作">
+                <button
+                  type="button"
+                  onClick={() => rotateSelected(-1)}
+                  aria-label="逆時針旋轉 1 度"
+                  title="逆時針 1°"
+                >
+                  <RotateCcw size={15} />
+                  <span className="rotation-step-label">−1°</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => rotateSelected(1)}
+                  aria-label="順時針旋轉 1 度"
+                  title="順時針 1°"
+                >
+                  <RotateCw size={15} />
+                  <span className="rotation-step-label">+1°</span>
+                </button>
+                <button
+                  className="selection-delete-action"
+                  type="button"
+                  onClick={removeSelected}
+                  aria-label="刪除選取軌道"
+                  title="刪除"
+                >
+                  <Trash2 size={17} />
+                </button>
+              </div>
+            </section>
+          ) : (
+            <div
+              className={`canvas-mode-hint ${panMode ? "is-pan-mode" : "is-select-mode"}`}
+              role="status"
+              aria-live="polite"
+            >
+              {panMode ? <Hand size={18} /> : <MousePointer2 size={18} />}
+              <span>
+                <strong>{panMode ? "拖移畫布" : "選取模式"}</strong>
+                <small>
+                  {panMode
+                    ? "拖曳任意位置移動畫布，軌道不會被選取"
+                    : "點選軌道可移動、旋轉或刪除"}
+                </small>
+              </span>
+            </div>
+          )}
+
+          <div
+            className={`canvas-view-controls ${panMode ? "is-pan-mode" : "is-select-mode"}`}
+            role="group"
+            aria-label="畫布檢視控制"
+          >
             <div className="canvas-mode-control" role="radiogroup" aria-label="畫布操作模式">
               <button
                 type="button"
@@ -1964,43 +2112,45 @@ export default function Home() {
 
       </aside>
 
-      <section
-        className="mobile-train-control"
-        aria-label={`列車控制，${trainRoute.segmentCount > 0 ? `${trainRoute.segmentCount} 軌` : "尚無可行駛路線"}`}
-      >
-        {renderTrainControl(true)}
-      </section>
+      <div className="mobile-command-deck">
+        <section
+          className="mobile-train-control"
+          aria-label={`列車控制，${trainRoute.segmentCount > 0 ? `${trainRoute.segmentCount} 軌` : "尚無可行駛路線"}`}
+        >
+          {renderTrainControl(true)}
+        </section>
 
-      <nav className="mobile-dock" aria-label="Mobile workspace navigation">
-        <button
-          type="button"
-          className={mobilePanel === "library" ? "active" : ""}
-          onClick={() => setMobilePanel((panel) => panel === "library" ? null : "library")}
-          aria-pressed={mobilePanel === "library"}
-          disabled={viewMode === "3d"}
-        >
-          <CircleDot size={20} />
-          <span>軌道</span>
-        </button>
-        <button
-          type="button"
-          className={mobilePanel === null ? "active" : ""}
-          onClick={() => setMobilePanel(null)}
-          aria-pressed={mobilePanel === null}
-        >
-          <Grid2X2 size={20} />
-          <span>畫布</span>
-        </button>
-        <button
-          type="button"
-          className={mobilePanel === "inspector" ? "active" : ""}
-          onClick={() => setMobilePanel((panel) => panel === "inspector" ? null : "inspector")}
-          aria-pressed={mobilePanel === "inspector"}
-        >
-          <Move size={20} />
-          <span>控制</span>
-        </button>
-      </nav>
+        <nav className="mobile-dock" aria-label="Mobile workspace navigation">
+          <button
+            type="button"
+            className={mobilePanel === "library" ? "active" : ""}
+            onClick={() => setMobilePanel((panel) => panel === "library" ? null : "library")}
+            aria-pressed={mobilePanel === "library"}
+            disabled={viewMode === "3d"}
+          >
+            <CircleDot size={20} />
+            <span>軌道</span>
+          </button>
+          <button
+            type="button"
+            className={mobilePanel === null ? "active" : ""}
+            onClick={() => setMobilePanel(null)}
+            aria-pressed={mobilePanel === null}
+          >
+            <Grid2X2 size={20} />
+            <span>畫布</span>
+          </button>
+          <button
+            type="button"
+            className={mobilePanel === "inspector" ? "active" : ""}
+            onClick={() => setMobilePanel((panel) => panel === "inspector" ? null : "inspector")}
+            aria-pressed={mobilePanel === "inspector"}
+          >
+            <Move size={20} />
+            <span>控制</span>
+          </button>
+        </nav>
+      </div>
     </main>
   );
 }
