@@ -9,13 +9,14 @@ import {
   ChevronDown,
   CircleDot,
   Copy,
+  Crosshair,
   Download,
   Eye,
   EyeOff,
   GitFork,
   Grid2X2,
   Hand,
-  Maximize2,
+  MousePointer2,
   Move,
   Moon,
   Pause,
@@ -910,7 +911,7 @@ export default function Home() {
   };
 
   const startSelectedGroupDrag = (event: React.PointerEvent<SVGElement>) => {
-    if (event.button !== 0 || selectedPlacedIds.length === 0) return;
+    if (panMode || event.button !== 0 || selectedPlacedIds.length === 0) return;
     event.stopPropagation();
     const svg = event.currentTarget.ownerSVGElement;
     if (!svg) return;
@@ -943,6 +944,7 @@ export default function Home() {
     rotateIds: string[],
     bounds: Rect
   ) => {
+    if (panMode) return;
     event.stopPropagation();
     const svg = event.currentTarget.ownerSVGElement;
     if (!svg) return;
@@ -1069,6 +1071,7 @@ export default function Home() {
   };
 
   const startTrainPlacement = (event: React.PointerEvent<SVGGElement>) => {
+    if (panMode) return;
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     const svg = event.currentTarget.ownerSVGElement;
@@ -1235,50 +1238,33 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            {viewMode === "2d" ? <>
-            <div className="toolbar-group">
-            <div className="zoom-control" aria-label="Canvas zoom">
-              <button onClick={() => changeZoom(zoom - 0.05)} aria-label="縮小">
-                <ZoomOut size={16} />
-              </button>
-              <input
-                type="range"
-                min={0.5}
-                max={3}
-                step={0.05}
-                value={zoom}
-                onChange={(event) => changeZoom(Number(event.target.value))}
-                aria-label="畫布縮放"
-              />
-              <button onClick={() => changeZoom(zoom + 0.05)} aria-label="放大">
-                <ZoomIn size={16} />
-              </button>
-              <button onClick={resetView} aria-label="Fit canvas">
-                <Maximize2 size={16} />
-              </button>
-              <span>{Math.round(zoom * 100)}%</span>
-            </div>
-            </div>
-            <div className="toolbar-group">
-            <button
-              className={`toolbar-icon-button ${panMode ? "active-tool" : ""}`}
-              onClick={() => setPanMode((enabled) => !enabled)}
-              aria-pressed={panMode}
-              aria-label="平移畫布"
-              title="平移畫布"
-            >
-              <Hand size={17} />
-            </button>
-            </div>
-            <div className="toolbar-group">
-            <button className="toolbar-icon-button" onClick={undo} disabled={!canUndo} aria-label="復原" title="復原">
-              <Undo2 size={17} />
-            </button>
-            <button className="toolbar-icon-button" onClick={redo} disabled={!canRedo} aria-label="重做" title="重做">
-              <Redo2 size={17} />
-            </button>
-            </div>
-            </> : null}
+            {viewMode === "2d" ? (
+              <div className="toolbar-group toolbar-zoom-group" role="group" aria-label="畫布縮放">
+                <button
+                  className="toolbar-icon-button"
+                  type="button"
+                  onClick={() => changeZoom(zoom - 0.05)}
+                  disabled={zoom <= 0.5}
+                  aria-label="縮小畫布"
+                  title="縮小"
+                >
+                  <ZoomOut size={17} />
+                </button>
+                <output className="topbar-zoom-value" aria-label="目前縮放比例">
+                  {Math.round(zoom * 100)}%
+                </output>
+                <button
+                  className="toolbar-icon-button"
+                  type="button"
+                  onClick={() => changeZoom(zoom + 0.05)}
+                  disabled={zoom >= 3}
+                  aria-label="放大畫布"
+                  title="放大"
+                >
+                  <ZoomIn size={17} />
+                </button>
+              </div>
+            ) : null}
             {viewMode === "3d" ? (
               <div className="toolbar-group">
                 <button
@@ -1402,6 +1388,7 @@ export default function Home() {
                   transform={`translate(${item.x} ${item.y}) rotate(${item.rotation}) translate(${-pivot.x} ${-pivot.y})`}
                   className={`placed-track ${isSelected ? "active" : ""}`}
                   onPointerDown={(event) => {
+                    if (panMode) return;
                     event.stopPropagation();
                     event.currentTarget.setPointerCapture(event.pointerId);
                     const svg = event.currentTarget.ownerSVGElement;
@@ -1498,6 +1485,74 @@ export default function Home() {
             viewWidth={viewWidth}
             viewHeight={viewHeight}
           />
+
+          <div className="canvas-mode-hint" role="status" aria-live="polite">
+            {panMode ? <Hand size={18} /> : <MousePointer2 size={18} />}
+            <span>
+              <strong>{panMode ? "拖移畫布" : "選取模式"}</strong>
+              <small>
+                {panMode
+                  ? "拖曳任意位置移動畫布，軌道不會被選取"
+                  : "點選軌道可移動、旋轉或刪除"}
+              </small>
+            </span>
+          </div>
+
+          <div className="canvas-view-controls" role="group" aria-label="畫布檢視控制">
+            <div className="canvas-mode-control" role="radiogroup" aria-label="畫布操作模式">
+              <button
+                type="button"
+                role="radio"
+                className={!panMode ? "active" : ""}
+                onClick={() => setPanMode(false)}
+                aria-checked={!panMode}
+                aria-label="選取軌道"
+                title="選取軌道"
+              >
+                <MousePointer2 size={19} />
+              </button>
+              <button
+                type="button"
+                role="radio"
+                className={panMode ? "active" : ""}
+                onClick={() => setPanMode(true)}
+                aria-checked={panMode}
+                aria-label="拖移畫布"
+                title="拖移畫布"
+              >
+                <Hand size={19} />
+              </button>
+            </div>
+            <button
+              type="button"
+              className="canvas-reset-action"
+              onClick={resetView}
+              onPointerUp={(event) => event.currentTarget.blur()}
+              aria-label="重設視角"
+              title="重設視角"
+            >
+              <Crosshair size={18} />
+            </button>
+            <span className="canvas-view-divider" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={undo}
+              disabled={!canUndo}
+              aria-label="復原"
+              title="復原"
+            >
+              <Undo2 size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={redo}
+              disabled={!canRedo}
+              aria-label="重做"
+              title="重做"
+            >
+              <Redo2 size={18} />
+            </button>
+          </div>
             </>
           )}
 
@@ -2516,7 +2571,7 @@ function CanvasRulers({
   if (canvasSize.width === 0 || canvasSize.height === 0) return null;
 
   const metrics = getSvgRenderMetrics(canvasSize, viewWidth, viewHeight);
-  const rulerSize = 26;
+  const rulerSize = 22;
   const majorStep = getRulerStep(metrics.scale, 78);
   const minorStep = majorStep / 5;
   const horizontalTicks = getRulerTicks(viewX, viewX + viewWidth, minorStep);
@@ -2534,8 +2589,8 @@ function CanvasRulers({
           const major = isMajorRulerTick(value, majorStep);
           return (
             <g key={`x-${value}`} transform={`translate(${x} 0)`}>
-              <line y1={major ? 3 : 13} y2={rulerSize} />
-              {major && value >= 0 ? <text x={3} y={11}>{formatRulerValue(value)}</text> : null}
+              <line y1={major ? 2 : 11} y2={rulerSize} />
+              {major && value >= 0 ? <text x={3} y={10}>{formatRulerValue(value)}</text> : null}
             </g>
           );
         })}
@@ -2550,9 +2605,9 @@ function CanvasRulers({
           const major = isMajorRulerTick(value, majorStep);
           return (
             <g key={`y-${value}`} transform={`translate(0 ${y})`}>
-              <line x1={major ? 3 : 13} x2={rulerSize} />
+              <line x1={major ? 2 : 11} x2={rulerSize} />
               {major && value >= 0 ? (
-                <text x={10} y={-3} transform="rotate(-90 10 -3)">
+                <text x={9} y={-3} transform="rotate(-90 9 -3)">
                   {formatRulerValue(value)}
                 </text>
               ) : null}

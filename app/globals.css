@@ -533,8 +533,7 @@ input {
   font-size: 0.72rem;
 }
 
-.tool-strip button,
-.zoom-control button {
+.tool-strip button {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -567,6 +566,19 @@ input {
   border-color: var(--accent);
   background: #fff0e8;
   color: var(--accent-dark);
+}
+
+.toolbar-zoom-group {
+  gap: 1px;
+}
+
+.topbar-zoom-value {
+  min-width: 48px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 .train-control {
@@ -757,43 +769,131 @@ input {
   color: var(--accent-dark);
 }
 
-.zoom-control {
+.canvas-mode-hint {
+  position: absolute;
+  z-index: 5;
+  bottom: 16px;
+  left: 38px;
+  display: grid;
+  max-width: min(320px, calc(100% - 84px));
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgb(255 244 236 / 18%);
+  border-radius: 8px;
+  background: rgb(34 33 31 / 94%);
+  box-shadow: 0 9px 24px rgb(20 18 16 / 22%);
+  color: #f4f0eb;
+  padding: 9px 12px 9px 9px;
+  pointer-events: none;
+}
+
+.canvas-mode-hint > svg {
+  justify-self: center;
+  color: #f18a50;
+}
+
+.canvas-mode-hint span,
+.canvas-mode-hint small {
+  display: block;
+  min-width: 0;
+}
+
+.canvas-mode-hint strong {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.canvas-mode-hint small {
+  margin-top: 2px;
+  color: #c9c3bd;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.canvas-view-controls {
+  position: absolute;
+  z-index: 6;
+  right: 16px;
+  bottom: 16px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 38px;
-  padding: 0 8px;
+  gap: 2px;
+  min-height: 48px;
+  padding: 1px;
+  border: 1px solid color-mix(in srgb, var(--line), var(--ink) 8%);
+  border-radius: 10px;
+  background: #f7f7f5;
+  box-shadow: 0 10px 28px rgb(22 20 18 / 20%);
+}
+
+.canvas-view-controls button {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  place-items: center;
+  padding: 0;
   border: 0;
+  border-radius: 7px;
+  background: #f7f7f5;
+  color: var(--ink);
+}
+
+.canvas-view-controls button:hover {
+  background: #e8e8e5;
+}
+
+.canvas-view-controls .canvas-reset-action:hover {
+  background: #f7f7f5;
+  color: var(--ink);
+}
+
+.canvas-view-controls .canvas-reset-action:active {
+  background: #dededb;
+}
+
+.canvas-view-controls button:focus-visible {
+  outline: 2px solid #5a5c5b;
+  outline-offset: -2px;
+}
+
+.canvas-mode-control {
+  display: flex;
+  height: 44px;
+  flex: none;
+  overflow: hidden;
+  border-radius: 7px;
+  background: #f7f7f5;
+}
+
+.canvas-mode-control button {
   border-radius: 0;
-  background: transparent;
 }
 
-.zoom-control button {
-  width: 30px;
+.canvas-mode-control button + button {
+  border-left: 1px solid color-mix(in srgb, var(--line), transparent 10%);
+}
+
+.canvas-mode-control button.active,
+.canvas-mode-control button.active:hover {
+  background: #3f4140;
+  color: #f7f6f3;
+}
+
+.canvas-view-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.canvas-view-divider {
+  width: 1px;
   height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-}
-
-.zoom-control button:hover {
-  background: color-mix(in srgb, var(--accent), transparent 88%);
-}
-
-.zoom-control input {
-  width: 104px;
-  height: 22px;
-  padding: 0;
-  accent-color: var(--accent);
-}
-
-.zoom-control span {
-  min-width: 42px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 850;
-  text-align: right;
+  margin: 0 3px;
+  background: color-mix(in srgb, var(--line), transparent 12%);
 }
 
 .canvas-frame {
@@ -1019,7 +1119,7 @@ input {
 
 .canvas-ruler text {
   fill: #ffffff;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   font-kerning: normal;
   font-variant-numeric: tabular-nums;
@@ -1031,13 +1131,13 @@ input {
   top: 0;
   left: 0;
   width: 100%;
-  height: 26px;
+  height: 22px;
 }
 
 .canvas-ruler-vertical {
   top: 0;
   left: 0;
-  width: 26px;
+  width: 22px;
   height: 100%;
 }
 
@@ -1046,13 +1146,13 @@ input {
   top: 0;
   left: 0;
   display: grid;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   place-items: center;
   border-right: 1px solid rgb(255 255 255 / 24%);
   border-bottom: 1px solid rgb(255 255 255 / 24%);
   color: #ffffff;
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 650;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -1366,7 +1466,7 @@ input {
 .empty-state {
   position: absolute;
   left: 20px;
-  bottom: 20px;
+  bottom: 78px;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -1802,8 +1902,7 @@ input {
   }
 
   .tool-strip .view-mode-control button,
-  .tool-strip .toolbar-icon-button,
-  .zoom-control button {
+  .tool-strip .toolbar-icon-button {
     min-width: 44px;
     height: 44px;
   }
@@ -1842,27 +1941,20 @@ input {
     min-height: 0;
   }
 
-  .zoom-control {
-    width: auto;
-    height: 44px;
-    justify-content: flex-start;
-    gap: 0;
-    padding: 0;
+  .canvas-view-controls {
+    right: 10px;
+    bottom: 10px;
   }
 
-  .tool-strip .zoom-control button {
-    width: 44px;
-    min-width: 44px;
-    padding: 0;
+  .canvas-mode-hint {
+    right: 10px;
+    bottom: 66px;
+    left: 10px;
+    max-width: none;
   }
 
-  .zoom-control input {
-    width: 64px;
-    margin: 0 2px;
-  }
-
-  .zoom-control span {
-    display: none;
+  .empty-state {
+    bottom: 130px;
   }
 
   .track-option,
@@ -1890,5 +1982,6 @@ input {
     .inspector.mobile-sheet {
       transition: none;
     }
+
   }
 }
