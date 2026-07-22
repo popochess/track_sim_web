@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { Maximize2 } from "lucide-react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import {
@@ -32,6 +31,7 @@ type SceneTheme = {
   hemisphere: THREE.HemisphereLight;
   sun: THREE.DirectionalLight;
   tableMaterial: THREE.MeshStandardMaterial;
+  tableEdgeMaterial: THREE.LineBasicMaterial;
   gridMaterials: THREE.Material[];
 };
 
@@ -151,7 +151,12 @@ export function Layout3DView({
     sun.shadow.camera.bottom = -shadowExtent;
     scene.add(sun);
 
-    const tableMaterial = new THREE.MeshStandardMaterial({ color: 0xefefef, roughness: 0.92 });
+    const tableMaterial = new THREE.MeshStandardMaterial({
+      color: 0xefefef,
+      emissive: 0x000000,
+      emissiveIntensity: 0,
+      roughness: 0.92
+    });
     const table = new THREE.Mesh(
       new THREE.BoxGeometry(layoutWidth, 18, layoutHeight),
       tableMaterial
@@ -159,6 +164,21 @@ export function Layout3DView({
     table.position.y = -10;
     table.receiveShadow = true;
     scene.add(table);
+
+    const tableEdgeMaterial = new THREE.LineBasicMaterial({
+      color: 0xaebec5,
+      transparent: true,
+      opacity: 0.12,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false
+    });
+    const tableEdges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(table.geometry),
+      tableEdgeMaterial
+    );
+    tableEdges.renderOrder = 1;
+    table.add(tableEdges);
 
     const gridSize = Math.max(layoutWidth, layoutHeight);
     const grid = new THREE.GridHelper(
@@ -183,6 +203,7 @@ export function Layout3DView({
       hemisphere,
       sun,
       tableMaterial,
+      tableEdgeMaterial,
       gridMaterials: Array.isArray(grid.material) ? grid.material : [grid.material]
     };
 
@@ -251,6 +272,10 @@ export function Layout3DView({
     const theme = sceneThemeRef.current;
     if (!theme) return;
 
+    if (rendererRef.current) {
+      rendererRef.current.toneMappingExposure = nightMode ? 1.18 : 1.05;
+    }
+
     theme.scene.background = new THREE.Color(nightMode ? 0x101214 : 0xd8d8d8);
     theme.fog.color.set(nightMode ? 0x101214 : 0xd8d8d8);
     theme.hemisphere.color.set(nightMode ? 0x233042 : 0xf5f5f5);
@@ -258,7 +283,11 @@ export function Layout3DView({
     theme.hemisphere.intensity = nightMode ? 0.48 : 2.15;
     theme.sun.color.set(nightMode ? 0x9fb6d6 : 0xffffff);
     theme.sun.intensity = nightMode ? 0.52 : 2.6;
-    theme.tableMaterial.color.set(nightMode ? 0x25272a : 0xefefef);
+    theme.tableMaterial.color.set(nightMode ? 0x343b40 : 0xefefef);
+    theme.tableMaterial.emissive.set(nightMode ? 0x263840 : 0x000000);
+    theme.tableMaterial.emissiveIntensity = nightMode ? 0.44 : 0;
+    theme.tableEdgeMaterial.color.set(nightMode ? 0xb7d2dc : 0xaebec5);
+    theme.tableEdgeMaterial.opacity = nightMode ? 0.34 : 0.12;
     theme.gridMaterials.forEach((material, index) => {
       const gridMaterial = material as THREE.LineBasicMaterial;
       gridMaterial.color.set(nightMode ? (index === 0 ? 0x5f5f5f : 0x363636) : (index === 0 ? 0xb6b6b6 : 0xd1d1d1));
@@ -269,6 +298,20 @@ export function Layout3DView({
     carGroupsRef.current.forEach((car) => {
       const headlights = car.userData.headlights as THREE.Group | undefined;
       if (headlights) headlights.visible = nightMode;
+      const interiorLights = car.userData.interiorLights as THREE.Group | undefined;
+      if (interiorLights) interiorLights.visible = nightMode;
+      const windowMaterial = car.userData.windowMaterial as THREE.MeshStandardMaterial | undefined;
+      if (windowMaterial) {
+        windowMaterial.color.set(nightMode ? 0xffd89a : 0x172126);
+        windowMaterial.emissive.set(nightMode ? 0xffbd62 : 0x000000);
+        windowMaterial.emissiveIntensity = nightMode ? 1.35 : 0;
+        windowMaterial.roughness = nightMode ? 0.42 : 0.16;
+        windowMaterial.metalness = nightMode ? 0.08 : 0.58;
+      }
+      const headlightLensMaterial = car.userData.headlightLensMaterial as THREE.MeshBasicMaterial | undefined;
+      if (headlightLensMaterial) {
+        headlightLensMaterial.color.set(nightMode ? 0xffffe8 : 0xffffd1);
+      }
     });
   }, [nightMode, layoutWidth, layoutHeight]);
 
@@ -278,23 +321,60 @@ export function Layout3DView({
     clearGroup(group);
 
     const bedMaterial = new THREE.MeshStandardMaterial({
-      color: 0x8d8d8d,
+      color: nightMode ? 0x939fa5 : 0x8d8d8d,
+      emissive: nightMode ? 0xd9e8ee : 0x000000,
+      emissiveIntensity: nightMode ? 0.38 : 0,
       roughness: 0.9,
       metalness: 0.02
     });
+    const bedGlowMaterial = nightMode
+      ? new THREE.MeshBasicMaterial({
+          color: 0xcce2ea,
+          transparent: true,
+          opacity: 0.28,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          toneMapped: false
+        })
+      : null;
     const railMaterial = new THREE.MeshStandardMaterial({
-      color: 0x3d3d3d,
-      roughness: 0.28,
-      metalness: 0.78
+      color: nightMode ? 0xd8e0e5 : 0x3d3d3d,
+      emissive: nightMode ? 0xe8f1f5 : 0x000000,
+      emissiveIntensity: nightMode ? 0.52 : 0,
+      roughness: nightMode ? 0.42 : 0.28,
+      metalness: nightMode ? 0.58 : 0.78
     });
+    const railGlowMaterial = nightMode
+      ? new THREE.MeshBasicMaterial({
+          color: 0xe6f2f7,
+          transparent: true,
+          opacity: 0.13,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          toneMapped: false
+        })
+      : null;
 
     const trails = mergeTrackPolylines(tracks, layoutWidth, layoutHeight);
     for (const trail of trails) {
+      if (bedGlowMaterial) {
+        const glowPoints = trail.points.map(
+          (point) => new THREE.Vector3(point.x, point.y - 0.12, point.z)
+        );
+        const bedGlow = new THREE.Mesh(
+          createRibbonGeometry(glowPoints, 29, trail.closed),
+          bedGlowMaterial
+        );
+        bedGlow.renderOrder = 0;
+        group.add(bedGlow);
+      }
       const bed = new THREE.Mesh(
         createRibbonGeometry(trail.points, 18.5, trail.closed),
         bedMaterial
       );
       bed.receiveShadow = true;
+      bed.renderOrder = 1;
       group.add(bed);
 
       for (const offset of [-4.5, 4.5]) {
@@ -317,8 +397,23 @@ export function Layout3DView({
           6,
           trail.closed
         );
+        if (railGlowMaterial) {
+          const glow = new THREE.Mesh(
+            new THREE.TubeGeometry(
+              curve,
+              Math.max(8, railPoints.length * 3),
+              2.7,
+              6,
+              trail.closed
+            ),
+            railGlowMaterial
+          );
+          glow.renderOrder = 1;
+          group.add(glow);
+        }
         const rail = new THREE.Mesh(geometry, railMaterial);
         rail.castShadow = true;
+        rail.renderOrder = 2;
         group.add(rail);
       }
     }
@@ -337,7 +432,7 @@ export function Layout3DView({
       );
     });
     group.add(indicatorGroup);
-  }, [tracks, turnouts, showTurnoutLabels, layoutWidth, layoutHeight]);
+  }, [tracks, turnouts, showTurnoutLabels, layoutWidth, layoutHeight, nightMode]);
 
   useEffect(() => {
     const offsets = trainRoute.totalLength >= TRAIN_CAR_CENTER_SPACING_MM
@@ -376,7 +471,7 @@ export function Layout3DView({
         aria-label="重設 3D 視角"
         title="重設 3D 視角"
       >
-        <Maximize2 size={18} />
+        重設視角
       </button>
     </div>
   );
@@ -664,6 +759,54 @@ function extendPolylineEnds(points: THREE.Vector3[], distance: number) {
   return extended;
 }
 
+function createRadialGlowTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const context = canvas.getContext("2d");
+  if (context) {
+    const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
+    gradient.addColorStop(0.16, "rgba(255, 255, 255, 0.82)");
+    gradient.addColorStop(0.46, "rgba(255, 255, 255, 0.24)");
+    gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 128, 128);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createHeadlightPoolTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 128;
+  const context = canvas.getContext("2d");
+  if (context) {
+    const forwardFade = context.createLinearGradient(0, 0, 256, 0);
+    forwardFade.addColorStop(0, "rgba(255, 255, 255, 0.8)");
+    forwardFade.addColorStop(0.18, "rgba(255, 255, 255, 0.52)");
+    forwardFade.addColorStop(0.58, "rgba(255, 255, 255, 0.16)");
+    forwardFade.addColorStop(1, "rgba(255, 255, 255, 0)");
+    context.fillStyle = forwardFade;
+    context.fillRect(0, 0, 256, 128);
+
+    context.globalCompositeOperation = "destination-in";
+    const edgeFade = context.createLinearGradient(0, 0, 0, 128);
+    edgeFade.addColorStop(0, "rgba(255, 255, 255, 0)");
+    edgeFade.addColorStop(0.3, "rgba(255, 255, 255, 0.78)");
+    edgeFade.addColorStop(0.5, "rgba(255, 255, 255, 1)");
+    edgeFade.addColorStop(0.7, "rgba(255, 255, 255, 0.78)");
+    edgeFade.addColorStop(1, "rgba(255, 255, 255, 0)");
+    context.fillStyle = edgeFade;
+    context.fillRect(0, 0, 256, 128);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 function createTrainCar(lead: boolean) {
   const group = new THREE.Group();
   const bodyMaterial = new THREE.MeshStandardMaterial({
@@ -678,9 +821,12 @@ function createTrainCar(lead: boolean) {
   });
   const windowMaterial = new THREE.MeshStandardMaterial({
     color: 0x172126,
+    emissive: 0x000000,
+    emissiveIntensity: 0,
     roughness: 0.16,
     metalness: 0.58
   });
+  group.userData.windowMaterial = windowMaterial;
   const stripeMaterial = new THREE.MeshStandardMaterial({
     color: 0xf5a13a,
     roughness: 0.35,
@@ -748,7 +894,11 @@ function createTrainCar(lead: boolean) {
       roughness: 0.32,
       metalness: 0.5
     });
-    const lampMaterial = new THREE.MeshBasicMaterial({ color: 0xffffd1 });
+    const lampMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffd1,
+      toneMapped: false
+    });
+    group.userData.headlightLensMaterial = lampMaterial;
     for (const z of [-5.7, 5.7]) {
       const bezel = new THREE.Mesh(
         new THREE.CylinderGeometry(2.2, 2.2, 0.55, 16),
@@ -800,22 +950,72 @@ function createTrainCar(lead: boolean) {
     }
   }
 
-  for (const x of [-38, 38]) {
-    const bogie = new THREE.Group();
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(20, 3.5, 17), darkMaterial);
-    frame.position.y = -1;
-    bogie.add(frame);
-    bogie.position.x = x;
-    group.add(bogie);
+  const interiorLights = new THREE.Group();
+  for (const x of [-30, 30]) {
+    const light = new THREE.PointLight(0xffc978, 1.4, 72, 1.8);
+    light.position.set(x, 12.5, 0);
+    interiorLights.add(light);
   }
+  interiorLights.visible = false;
+  group.userData.interiorLights = interiorLights;
+  group.add(interiorLights);
 
   if (lead) {
     const headlights = new THREE.Group();
+    const headlightGlowMaterial = new THREE.SpriteMaterial({
+      map: createRadialGlowTexture(),
+      color: 0xffe8b8,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false
+    });
+    const headlightHaloMaterial = new THREE.SpriteMaterial({
+      map: createRadialGlowTexture(),
+      color: 0xfff2d2,
+      transparent: true,
+      opacity: 0.34,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false
+    });
     for (const z of [-5.4, 5.4]) {
-      const light = new THREE.PointLight(0xffe0a6, 3.4, 110, 1.8);
+      const light = new THREE.PointLight(0xffe3b0, 16, 290, 1.3);
       light.position.set(TRAIN_CAR_LENGTH_MM / 2 + 4.5, 8.4, z);
       headlights.add(light);
+
+      const glow = new THREE.Sprite(headlightGlowMaterial);
+      glow.scale.set(9, 9, 1);
+      glow.position.copy(light.position);
+      headlights.add(glow);
+
+      const halo = new THREE.Sprite(headlightHaloMaterial);
+      halo.scale.set(18, 18, 1);
+      halo.position.copy(light.position);
+      headlights.add(halo);
     }
+    const beam = new THREE.SpotLight(0xffe8bd, 48, 520, 0.27, 0.82, 1.15);
+    beam.position.set(TRAIN_CAR_LENGTH_MM / 2 + 4.5, 9, 0);
+    beam.target.position.set(TRAIN_CAR_LENGTH_MM / 2 + 280, 1, 0);
+    headlights.add(beam, beam.target);
+
+    const groundLight = new THREE.Mesh(
+      new THREE.PlaneGeometry(270, 76),
+      new THREE.MeshBasicMaterial({
+        map: createHeadlightPoolTexture(),
+        color: 0xffe6ae,
+        transparent: true,
+        opacity: 0.3,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false
+      })
+    );
+    groundLight.rotation.x = -Math.PI / 2;
+    groundLight.position.set(TRAIN_CAR_LENGTH_MM / 2 + 137, 1.35, 0);
+    groundLight.renderOrder = 3;
+    headlights.add(groundLight);
     headlights.visible = false;
     group.userData.headlights = headlights;
     group.add(headlights);

@@ -60,6 +60,13 @@ button {
   grid-template-columns: minmax(0, 1fr) 280px;
 }
 
+.mobile-sheet-header,
+.mobile-sheet-backdrop,
+.mobile-dock,
+.mobile-empty-instruction {
+  display: none;
+}
+
 .sidebar,
 .inspector,
 .workspace {
@@ -294,6 +301,8 @@ input {
 }
 
 .track-panel {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   flex: 1;
 }
@@ -332,8 +341,9 @@ input {
 .track-list,
 .set-list {
   display: grid;
+  flex: 1;
   gap: 8px;
-  max-height: calc(100vh - 370px);
+  min-height: 0;
   overflow: auto;
   padding-right: 2px;
 }
@@ -821,14 +831,18 @@ input {
   z-index: 2;
   top: 14px;
   right: 14px;
-  display: grid;
-  width: 38px;
+  display: inline-flex;
+  min-width: 84px;
   height: 38px;
-  place-items: center;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgb(255 255 255 / 42%);
   border-radius: 7px;
   background: rgb(35 35 35 / 88%);
   color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0 12px;
   box-shadow: 0 8px 24px rgb(0 0 0 / 24%);
 }
 
@@ -1005,7 +1019,7 @@ input {
 
 .canvas-ruler text {
   fill: #ffffff;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   font-kerning: normal;
   font-variant-numeric: tabular-nums;
@@ -1017,13 +1031,13 @@ input {
   top: 0;
   left: 0;
   width: 100%;
-  height: 34px;
+  height: 26px;
 }
 
 .canvas-ruler-vertical {
   top: 0;
   left: 0;
-  width: 34px;
+  width: 26px;
   height: 100%;
 }
 
@@ -1032,13 +1046,13 @@ input {
   top: 0;
   left: 0;
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 26px;
+  height: 26px;
   place-items: center;
   border-right: 1px solid rgb(255 255 255 / 24%);
   border-bottom: 1px solid rgb(255 255 255 / 24%);
   color: #ffffff;
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 650;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -1227,16 +1241,13 @@ input {
 
 .track-code-label {
   dominant-baseline: middle;
-  fill: #080808;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 16px;
+  fill: var(--ink);
+  font-family: "Avenir Next", "Hiragino Sans", "Noto Sans TC", system-ui, sans-serif;
+  font-size: 15px;
   font-weight: 400;
   letter-spacing: 0;
-  paint-order: stroke;
   pointer-events: none;
-  stroke: #ffffff;
-  stroke-linejoin: round;
-  stroke-width: 3px;
+  stroke: none;
   text-anchor: middle;
   user-select: none;
   vector-effect: non-scaling-stroke;
@@ -1540,125 +1551,344 @@ input {
 
 @media (max-width: 780px) {
   body {
-    overflow: auto;
+    overflow: hidden;
   }
 
   .app-shell {
-    grid-template-columns: 1fr;
-    height: auto;
-    min-height: 100vh;
-    overflow: visible;
-    padding: 10px;
+    display: block;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
   }
 
-  .sidebar,
-  .inspector,
   .workspace {
+    height: 100dvh;
     max-height: none;
+    gap: 8px;
+    overflow: hidden;
+    padding: 8px 8px calc(78px + env(safe-area-inset-bottom));
   }
 
-  .sidebar,
-  .inspector {
-    overflow: visible;
+  .mobile-sheet-backdrop {
+    position: fixed;
+    z-index: 50;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    background: rgb(20 18 16 / 34%);
+    padding: 0;
   }
 
-  .workspace {
-    overflow: visible;
+  .sidebar.mobile-sheet,
+  .inspector.mobile-sheet {
+    position: fixed;
+    z-index: 60;
+    right: 8px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    left: 8px;
+    display: flex;
+    width: auto;
+    max-height: calc(100dvh - 96px - env(safe-area-inset-bottom));
+    min-height: 0;
+    grid-column: auto;
+    grid-template-columns: none;
+    transform: translateY(calc(100% + 96px));
+    visibility: hidden;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--panel), white 24%);
+    box-shadow: 0 18px 54px rgb(23 19 16 / 24%);
+    padding: 0 10px 10px;
+    transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
   }
 
-  .track-panel {
+  .sidebar.mobile-sheet.is-open,
+  .inspector.mobile-sheet.is-open {
+    transform: translateY(0);
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .sidebar.mobile-sheet {
+    height: min(76dvh, 720px);
+    gap: 8px;
+  }
+
+  .inspector.mobile-sheet {
+    height: min(82dvh, 760px);
+    gap: 10px;
+    overflow-y: auto;
+  }
+
+  .mobile-sheet-header {
+    position: sticky;
+    z-index: 2;
+    top: 0;
+    display: grid;
     flex: none;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    min-height: 58px;
+    align-items: center;
+    border-bottom: 1px solid color-mix(in srgb, var(--line), transparent 25%);
+    background: color-mix(in srgb, var(--panel), white 24%);
+    padding: 9px 0 4px;
   }
 
-  .track-list,
-  .set-list {
-    max-height: min(58vh, 560px);
+  .mobile-sheet-handle {
+    position: absolute;
+    top: 5px;
+    left: 50%;
+    width: 38px;
+    height: 4px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--muted), transparent 50%);
   }
 
-  .inspector {
-    grid-template-columns: 1fr;
+  .mobile-sheet-header > div {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 0.96rem;
   }
 
-  .topbar,
-  .tool-strip {
-    align-items: stretch;
-    flex-direction: column;
+  .mobile-sheet-header button {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink);
+  }
+
+  .mobile-sheet .panel {
+    box-shadow: none;
+  }
+
+  .mobile-sheet .track-panel {
+    flex: 1;
+  }
+
+  .mobile-sheet .track-list,
+  .mobile-sheet .set-list {
+    flex: 1;
+    max-height: none;
+    overscroll-behavior: contain;
+  }
+
+  .mobile-sheet .add-button {
+    flex: none;
+    min-height: 52px;
+    box-shadow: none;
+  }
+
+  .mobile-dock {
+    position: fixed;
+    z-index: 70;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    left: 8px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    min-height: 60px;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--line), var(--ink) 8%);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--panel), white 22%);
+    box-shadow: 0 12px 32px rgb(23 19 16 / 18%);
+    padding: 4px;
+  }
+
+  .mobile-dock button {
+    display: flex;
+    min-width: 0;
+    min-height: 52px;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 850;
+  }
+
+  .mobile-dock button.active {
+    background: var(--ink);
+    color: color-mix(in srgb, var(--panel), white 22%);
+  }
+
+  .mobile-dock button:disabled {
+    opacity: 0.35;
   }
 
   .topbar {
-    position: sticky;
-    top: 10px;
+    position: relative;
+    min-width: 0;
+    min-height: 54px;
+    align-items: center;
+    overflow: hidden;
+    padding: 4px;
+  }
+
+  .topbar::after {
+    position: absolute;
+    z-index: 2;
+    top: 5px;
+    right: 4px;
+    bottom: 5px;
+    width: 24px;
+    background: linear-gradient(90deg, transparent, #e3e3e3 82%);
+    content: "";
+    pointer-events: none;
+  }
+
+  .workspace-heading {
+    display: none;
+  }
+
+  .desktop-empty-instruction {
+    display: none;
+  }
+
+  .mobile-empty-instruction {
+    display: inline;
+  }
+
+  .tool-strip {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: scroll;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    padding: 2px 28px 2px 2px;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    touch-action: pan-x;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tool-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .toolbar-group {
+    flex: none;
+    min-height: 44px;
+    padding: 0 4px;
+  }
+
+  .toolbar-view-group {
+    padding-left: 0;
+  }
+
+  .toolbar-view-group .view-mode-control {
+    width: 126px;
+    height: 44px;
+  }
+
+  .tool-strip .view-mode-control button,
+  .tool-strip .toolbar-icon-button,
+  .zoom-control button {
+    min-width: 44px;
+    height: 44px;
   }
 
   .workspace-3d {
     grid-template-rows: auto minmax(0, 1fr);
-    min-height: calc(100dvh - 20px);
+    min-height: 0;
   }
 
   .topbar-3d {
-    z-index: 20;
-    min-height: 52px;
-    align-items: center;
-    justify-content: flex-end;
-    padding: 6px;
-  }
-
-  .topbar-3d .workspace-heading {
-    display: none;
+    min-height: 54px;
   }
 
   .topbar-3d .tool-strip {
-    width: auto;
-    flex-direction: row;
-    align-items: center;
-    align-self: auto;
-    flex-wrap: nowrap;
-    padding: 3px;
-  }
-
-  .topbar-3d .toolbar-group {
-    min-height: 40px;
-    padding: 0 4px;
-  }
-
-  .topbar-3d .toolbar-view-group {
-    padding-left: 0;
+    width: 100%;
   }
 
   .topbar-3d .toolbar-view-group .view-mode-control {
-    width: 132px;
-    height: 40px;
+    width: 126px;
+    height: 44px;
   }
 
   .topbar-3d .tool-strip .view-mode-control button,
   .topbar-3d .tool-strip .toolbar-icon-button {
-    min-width: 40px;
-    height: 40px;
+    min-width: 44px;
+    height: 44px;
   }
 
   .topbar-3d .tool-strip .toolbar-icon-button {
-    width: 40px;
+    width: 44px;
   }
 
   .workspace-3d .canvas-frame-3d,
   .workspace-3d .layout-3d-view {
-    height: calc(100dvh - 86px);
-    min-height: 420px;
+    height: 100%;
+    min-height: 0;
   }
 
   .zoom-control {
-    justify-content: space-between;
+    width: auto;
+    height: 44px;
+    justify-content: flex-start;
+    gap: 0;
+    padding: 0;
   }
 
-  .layout-canvas {
-    min-height: 520px;
+  .tool-strip .zoom-control button {
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
   }
 
-  .canvas-frame-3d {
-    min-height: 620px;
+  .zoom-control input {
+    width: 64px;
+    margin: 0 2px;
   }
 
+  .zoom-control span {
+    display: none;
+  }
+
+  .track-option,
+  .set-option {
+    min-height: 76px;
+  }
+
+  .track-option {
+    grid-template-columns: 70px minmax(0, 1fr) 24px;
+  }
+
+  .mini-track {
+    width: 70px;
+    height: 58px;
+  }
+
+  .layout-canvas,
+  .canvas-frame-3d,
   .layout-3d-view {
-    min-height: 620px;
+    min-height: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar.mobile-sheet,
+    .inspector.mobile-sheet {
+      transition: none;
+    }
   }
 }

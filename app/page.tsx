@@ -24,7 +24,6 @@ import {
   Redo2,
   RotateCcw,
   RotateCw,
-  Save,
   Trash2,
   Undo2,
   Sun,
@@ -205,6 +204,7 @@ export default function Home() {
   const [nightMode, setNightMode] = useState(false);
   const [showTurnoutLabels, setShowTurnoutLabels] = useState(true);
   const [hasRestoredSavedLayout, setHasRestoredSavedLayout] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<"library" | "inspector" | null>(null);
   const canvasFrameRef = useRef<HTMLDivElement | null>(null);
   const interactionSnapshotRef = useRef<LayoutSnapshot | null>(null);
   const trainFrameRef = useRef<number | null>(null);
@@ -613,6 +613,23 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!mobilePanel) return;
+
+    const closeMobilePanel = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobilePanel(null);
+    };
+
+    window.addEventListener("keydown", closeMobilePanel);
+    return () => window.removeEventListener("keydown", closeMobilePanel);
+  }, [mobilePanel]);
+
+  useEffect(() => {
+    if (viewMode === "3d" && mobilePanel === "library") {
+      setMobilePanel(null);
+    }
+  }, [mobilePanel, viewMode]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const modifierPressed = event.metaKey || event.ctrlKey;
       if (!modifierPressed || isEditableElement(event.target)) return;
@@ -643,7 +660,7 @@ export default function Home() {
   const addTrackAt = (track: TrackDefinition, x: number, y: number) => {
     pushHistory(createSnapshot());
     const next: PlacedTrack = {
-      id: `${track.id}-${crypto.randomUUID()}`,
+      id: `${track.id}-${createUniqueId()}`,
       trackId: track.id,
       x: Math.round(x),
       y: Math.round(y),
@@ -684,7 +701,7 @@ export default function Home() {
     const nextLayoutHeight = shouldUseSetCanvas ? set.layoutSize.height : layoutHeight;
     const centerX = nextLayoutWidth / 2;
     const centerY = nextLayoutHeight / 2;
-    const batchId = crypto.randomUUID();
+    const batchId = createUniqueId();
     const next: PlacedTrack[] = set.pieces.map((piece, index) => ({
       id: `${set.id}-${batchId}-${index}`,
       trackId: piece.trackId,
@@ -1063,7 +1080,26 @@ export default function Home() {
 
   return (
     <main className={`app-shell ${viewMode === "3d" ? "app-shell-3d" : ""}`}>
-      {viewMode === "2d" ? <aside className="sidebar">
+      {mobilePanel ? (
+        <button
+          className="mobile-sheet-backdrop"
+          type="button"
+          onClick={() => setMobilePanel(null)}
+          aria-label="關閉面板"
+        />
+      ) : null}
+
+      {viewMode === "2d" ? <aside className={`sidebar mobile-sheet ${mobilePanel === "library" ? "is-open" : ""}`}>
+        <div className="mobile-sheet-header">
+          <span className="mobile-sheet-handle" aria-hidden="true" />
+          <div>
+            <CircleDot size={18} />
+            <strong>軌道庫</strong>
+          </div>
+          <button type="button" onClick={() => setMobilePanel(null)} aria-label="關閉軌道庫">
+            <ChevronDown size={20} />
+          </button>
+        </div>
         <section className="panel track-panel">
           <div className="panel-title">
             <CircleDot size={17} />
@@ -1155,7 +1191,11 @@ export default function Home() {
 
         <button
           className="add-button"
-          onClick={() => (libraryMode === "sets" ? addSet() : addTrack())}
+          onClick={() => {
+            if (libraryMode === "sets") addSet();
+            else addTrack();
+            setMobilePanel(null);
+          }}
         >
           <Plus size={18} />
           {libraryMode === "sets" ? "新增選取整組" : "新增選取軌道"}
@@ -1194,11 +1234,6 @@ export default function Home() {
                   <span>3D</span>
                 </button>
               </div>
-            </div>
-            <div className="toolbar-group">
-            <button className="toolbar-icon-button" onClick={saveLayout} title="儲存目前配置到此瀏覽器" aria-label="儲存">
-              <Save size={17} />
-            </button>
             </div>
             {viewMode === "2d" ? <>
             <div className="toolbar-group">
@@ -1378,7 +1413,7 @@ export default function Home() {
                           .filter((placedItem) => dragIds.includes(placedItem.id))
                           .map((placedItem) => ({
                             ...placedItem,
-                            id: `${placedItem.trackId}-${crypto.randomUUID()}`
+                            id: `${placedItem.trackId}-${createUniqueId()}`
                           }));
                         const copiedIds = copiedTracks.map((copiedTrack) => copiedTrack.id);
                         const origins = Object.fromEntries(
@@ -1482,13 +1517,28 @@ export default function Home() {
           {placed.length === 0 ? (
             <div className="empty-state">
               <Grid2X2 size={21} />
-              <span>從左側新增 Tomix 軌道，或雙擊軌道清單直接放入畫布。</span>
+              <span className="desktop-empty-instruction">
+                從左側新增 Tomix 軌道，或雙擊軌道清單直接放入畫布。
+              </span>
+              <span className="mobile-empty-instruction">
+                點下方「軌道」選擇型號，再按「新增」放入畫布。
+              </span>
             </div>
           ) : null}
         </div>
       </section>
 
-      <aside className="inspector">
+      <aside className={`inspector mobile-sheet ${mobilePanel === "inspector" ? "is-open" : ""}`}>
+        <div className="mobile-sheet-header">
+          <span className="mobile-sheet-handle" aria-hidden="true" />
+          <div>
+            <Move size={18} />
+            <strong>配置控制</strong>
+          </div>
+          <button type="button" onClick={() => setMobilePanel(null)} aria-label="關閉配置控制">
+            <ChevronDown size={20} />
+          </button>
+        </div>
         <section className="panel">
           <div className="panel-title">
             <Grid2X2 size={17} />
@@ -1518,7 +1568,7 @@ export default function Home() {
           </div>
           <div className="layout-file-actions">
             <button type="button" onClick={exportLayoutFile} title="下載目前配置專案檔">
-              <Download size={15} />
+              <Upload size={15} />
               匯出配置
             </button>
             <button
@@ -1526,7 +1576,7 @@ export default function Home() {
               onClick={() => layoutFileInputRef.current?.click()}
               title="從專案檔匯入配置"
             >
-              <Upload size={15} />
+              <Download size={15} />
               匯入配置
             </button>
             <input
@@ -1635,7 +1685,7 @@ export default function Home() {
               ? `${trainRoute.segmentCount} 軌 · ${trainRoute.closed ? "環線" : "終點停車"}`
               : "尚無可行駛路線"}
           </p>
-          <details className="train-debug-panel" open>
+          <details className="train-debug-panel">
             <summary>Debug log</summary>
             <div className="train-debug-actions">
               <button
@@ -1779,6 +1829,37 @@ export default function Home() {
         </section>
 
       </aside>
+
+      <nav className="mobile-dock" aria-label="Mobile workspace navigation">
+        <button
+          type="button"
+          className={mobilePanel === "library" ? "active" : ""}
+          onClick={() => setMobilePanel((panel) => panel === "library" ? null : "library")}
+          aria-pressed={mobilePanel === "library"}
+          disabled={viewMode === "3d"}
+        >
+          <CircleDot size={20} />
+          <span>軌道</span>
+        </button>
+        <button
+          type="button"
+          className={mobilePanel === null ? "active" : ""}
+          onClick={() => setMobilePanel(null)}
+          aria-pressed={mobilePanel === null}
+        >
+          <Grid2X2 size={20} />
+          <span>畫布</span>
+        </button>
+        <button
+          type="button"
+          className={mobilePanel === "inspector" ? "active" : ""}
+          onClick={() => setMobilePanel((panel) => panel === "inspector" ? null : "inspector")}
+          aria-pressed={mobilePanel === "inspector"}
+        >
+          <Move size={20} />
+          <span>控制</span>
+        </button>
+      </nav>
     </main>
   );
 }
@@ -2435,7 +2516,7 @@ function CanvasRulers({
   if (canvasSize.width === 0 || canvasSize.height === 0) return null;
 
   const metrics = getSvgRenderMetrics(canvasSize, viewWidth, viewHeight);
-  const rulerSize = 34;
+  const rulerSize = 26;
   const majorStep = getRulerStep(metrics.scale, 78);
   const minorStep = majorStep / 5;
   const horizontalTicks = getRulerTicks(viewX, viewX + viewWidth, minorStep);
@@ -2453,8 +2534,8 @@ function CanvasRulers({
           const major = isMajorRulerTick(value, majorStep);
           return (
             <g key={`x-${value}`} transform={`translate(${x} 0)`}>
-              <line y1={major ? 4 : 17} y2={rulerSize} />
-              {major && value >= 0 ? <text x={4} y={14}>{formatRulerValue(value)}</text> : null}
+              <line y1={major ? 3 : 13} y2={rulerSize} />
+              {major && value >= 0 ? <text x={3} y={11}>{formatRulerValue(value)}</text> : null}
             </g>
           );
         })}
@@ -2469,9 +2550,9 @@ function CanvasRulers({
           const major = isMajorRulerTick(value, majorStep);
           return (
             <g key={`y-${value}`} transform={`translate(0 ${y})`}>
-              <line x1={major ? 4 : 17} x2={rulerSize} />
+              <line x1={major ? 3 : 13} x2={rulerSize} />
               {major && value >= 0 ? (
-                <text x={13} y={-4} transform="rotate(-90 13 -4)">
+                <text x={10} y={-3} transform="rotate(-90 10 -3)">
                   {formatRulerValue(value)}
                 </text>
               ) : null}
@@ -2482,6 +2563,27 @@ function CanvasRulers({
       <div className="canvas-ruler-corner">mm</div>
     </div>
   );
+}
+
+let fallbackIdSequence = 0;
+
+function createUniqueId() {
+  const browserCrypto = globalThis.crypto;
+
+  if (typeof browserCrypto?.randomUUID === "function") {
+    return browserCrypto.randomUUID();
+  }
+
+  if (typeof browserCrypto?.getRandomValues === "function") {
+    const bytes = browserCrypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+    return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+  }
+
+  fallbackIdSequence += 1;
+  return `${Date.now().toString(36)}-${fallbackIdSequence.toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function isEditableElement(target: EventTarget | null) {
