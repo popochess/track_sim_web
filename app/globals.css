@@ -62,6 +62,7 @@ button {
 
 .mobile-sheet-header,
 .mobile-sheet-backdrop,
+.mobile-train-control,
 .mobile-dock,
 .mobile-empty-instruction {
   display: none;
@@ -950,6 +951,10 @@ input {
   background: #303030;
 }
 
+.mobile-camera-pad {
+  display: none;
+}
+
 .turnout-controller-list {
   display: grid;
   max-height: min(48vh, 420px);
@@ -1688,11 +1693,11 @@ input {
     position: fixed;
     z-index: 60;
     right: 8px;
-    bottom: calc(76px + env(safe-area-inset-bottom));
+    bottom: calc(142px + env(safe-area-inset-bottom));
     left: 8px;
     display: flex;
     width: auto;
-    max-height: calc(100dvh - 96px - env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 162px - env(safe-area-inset-bottom));
     min-height: 0;
     grid-column: auto;
     grid-template-columns: none;
@@ -1710,9 +1715,14 @@ input {
 
   .sidebar.mobile-sheet.is-open,
   .inspector.mobile-sheet.is-open {
-    transform: translateY(0);
+    transform: translateY(var(--sheet-drag-y, 0px));
     visibility: visible;
     pointer-events: auto;
+  }
+
+  .sidebar.mobile-sheet.is-dragging,
+  .inspector.mobile-sheet.is-dragging {
+    transition: none;
   }
 
   .sidebar.mobile-sheet {
@@ -1738,6 +1748,13 @@ input {
     border-bottom: 1px solid color-mix(in srgb, var(--line), transparent 25%);
     background: color-mix(in srgb, var(--panel), white 24%);
     padding: 9px 0 4px;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .mobile-sheet.is-dragging .mobile-sheet-header {
+    cursor: grabbing;
   }
 
   .mobile-sheet-handle {
@@ -1788,6 +1805,94 @@ input {
     flex: none;
     min-height: 52px;
     box-shadow: none;
+  }
+
+  .inspector.mobile-sheet .train-inspector-panel {
+    display: none;
+  }
+
+  .mobile-train-control {
+    position: fixed;
+    z-index: 69;
+    right: 8px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    left: 8px;
+    display: block;
+    min-width: 0;
+    border: 1px solid color-mix(in srgb, var(--line), var(--ink) 8%);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--panel), white 22%);
+    box-shadow: 0 10px 28px rgb(23 19 16 / 16%);
+    padding: 6px;
+  }
+
+  .mobile-train-control .train-control-compact {
+    display: grid;
+    grid-template-columns: 44px 44px minmax(76px, 1fr) 92px;
+    gap: 4px;
+    width: 100%;
+    height: 44px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+  }
+
+  .mobile-train-control .train-control-compact > button,
+  .mobile-train-control .train-direction-control button {
+    display: grid;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink);
+    padding: 0;
+  }
+
+  .mobile-train-control .train-control-compact > button.active-tool {
+    background: var(--ink);
+    color: white;
+  }
+
+  .mobile-train-control .train-control-compact > button:disabled {
+    opacity: 0.35;
+  }
+
+  .mobile-train-control .train-control-compact select {
+    width: 100%;
+    height: 44px;
+    min-width: 0;
+    border-radius: 8px;
+    font-size: 0.75rem;
+  }
+
+  .mobile-train-control .train-direction-control {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 92px;
+    height: 44px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+
+  .mobile-train-control .train-direction-control button {
+    width: 45px;
+    min-width: 45px;
+    border-radius: 0;
+  }
+
+  .mobile-train-control .train-direction-control button + button {
+    border-left: 1px solid var(--line);
+  }
+
+  .mobile-train-control .train-direction-control button.active {
+    background: var(--ink);
+    color: white;
   }
 
   .mobile-dock {
@@ -1939,6 +2044,55 @@ input {
   .workspace-3d .layout-3d-view {
     height: 100%;
     min-height: 0;
+  }
+
+  .mobile-camera-pad {
+    position: absolute;
+    z-index: 3;
+    top: 10px;
+    left: 10px;
+    display: grid;
+    grid-template: repeat(3, 44px) / repeat(3, 44px);
+    gap: 2px;
+    width: 136px;
+    height: 136px;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .mobile-camera-pad button {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 1px solid rgb(255 255 255 / 36%);
+    border-radius: 8px;
+    background: rgb(35 35 35 / 84%);
+    color: #ffffff;
+    box-shadow: 0 5px 16px rgb(0 0 0 / 20%);
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-camera-pad button:active {
+    transform: translateY(1px);
+    background: rgb(26 26 26 / 96%);
+  }
+
+  .mobile-camera-pad .camera-move-up {
+    grid-area: 1 / 2;
+  }
+
+  .mobile-camera-pad .camera-move-left {
+    grid-area: 2 / 1;
+  }
+
+  .mobile-camera-pad .camera-move-right {
+    grid-area: 2 / 3;
+  }
+
+  .mobile-camera-pad .camera-move-down {
+    grid-area: 3 / 2;
   }
 
   .canvas-view-controls {

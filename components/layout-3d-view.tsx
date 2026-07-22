@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  type PointerEvent as ReactPointerEvent
+} from "react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp } from "lucide-react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import {
@@ -42,6 +48,7 @@ type TrackTrail = {
 
 const trainRailHeight = 4.6;
 const trackJoinTolerance = 2;
+type CameraMoveKey = "arrowup" | "arrowdown" | "arrowleft" | "arrowright";
 
 export function Layout3DView({
   layoutWidth,
@@ -64,6 +71,7 @@ export function Layout3DView({
   const carGroupsRef = useRef<THREE.Group[]>([]);
   const sceneThemeRef = useRef<SceneTheme | null>(null);
   const frameRef = useRef<number | null>(null);
+  const cameraButtonKeysRef = useRef(new Set<CameraMoveKey>());
 
   const resetCamera = useCallback(() => {
     const camera = cameraRef.current;
@@ -71,6 +79,27 @@ export function Layout3DView({
     if (!camera || !controls) return;
     positionCamera(camera, controls, layoutWidth, layoutHeight);
   }, [layoutWidth, layoutHeight]);
+
+  const startCameraMove = useCallback((
+    key: CameraMoveKey,
+    event: ReactPointerEvent<HTMLButtonElement>
+  ) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    cameraButtonKeysRef.current.add(key);
+
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    if (!camera || !controls) return;
+    const movement = getCameraMovement(new Set([key]), camera, controls).multiplyScalar(12);
+    camera.position.add(movement);
+    controls.target.add(movement);
+    controls.update();
+  }, []);
+
+  const stopCameraMove = useCallback((key: CameraMoveKey) => {
+    cameraButtonKeysRef.current.delete(key);
+  }, []);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -132,6 +161,7 @@ export function Layout3DView({
     };
     const clearPressedKeys = () => {
       pressedKeys.clear();
+      cameraButtonKeysRef.current.clear();
       shiftPressed = false;
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -233,7 +263,9 @@ export function Layout3DView({
 
     const render = () => {
       const delta = Math.min(cameraClock.getDelta(), 0.05);
-      const input = getCameraMovement(pressedKeys, camera, controls);
+      const activeKeys = new Set<string>(pressedKeys);
+      cameraButtonKeysRef.current.forEach((key) => activeKeys.add(key));
+      const input = getCameraMovement(activeKeys, camera, controls);
       const targetVelocity = input.multiplyScalar(shiftPressed ? 144 : 72);
       const blend = 1 - Math.exp(-12 * delta);
       cameraVelocity.lerp(targetVelocity, blend);
@@ -254,6 +286,7 @@ export function Layout3DView({
       observer.disconnect();
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
       controls.dispose();
+      cameraButtonKeysRef.current.clear();
       scene.traverse(disposeObject);
       renderer.dispose();
       renderer.forceContextLoss();
@@ -473,6 +506,28 @@ export function Layout3DView({
       >
         重設視角
       </button>
+      <div className="mobile-camera-pad" role="group" aria-label="移動 3D 相機視角">
+        {([
+          ["arrowup", "向上移動視角", ArrowUp, "camera-move-up"],
+          ["arrowleft", "向左移動視角", ArrowLeft, "camera-move-left"],
+          ["arrowright", "向右移動視角", ArrowRight, "camera-move-right"],
+          ["arrowdown", "向下移動視角", ArrowDown, "camera-move-down"]
+        ] as const).map(([key, label, Icon, className]) => (
+          <button
+            className={className}
+            type="button"
+            key={key}
+            aria-label={label}
+            title={label}
+            onPointerDown={(event) => startCameraMove(key, event)}
+            onPointerUp={() => stopCameraMove(key)}
+            onPointerCancel={() => stopCameraMove(key)}
+            onLostPointerCapture={() => stopCameraMove(key)}
+          >
+            <Icon size={19} strokeWidth={2.25} />
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

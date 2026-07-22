@@ -82,6 +82,15 @@ type LayoutHistory = {
   future: LayoutSnapshot[];
 };
 
+type MobileSheetDrag = {
+  pointerId: number;
+  startY: number;
+  lastY: number;
+  lastTime: number;
+  velocityY: number;
+  sheet: HTMLElement;
+};
+
 type LayoutExportFile = {
   format: "tomix-layout-planner";
   version: 1;
@@ -215,6 +224,7 @@ export default function Home() {
   const trainDebugInitializedRef = useRef(false);
   const terminalStopReportedRef = useRef(false);
   const layoutFileInputRef = useRef<HTMLInputElement | null>(null);
+  const mobileSheetDragRef = useRef<MobileSheetDrag | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
 
   const trackMap = useMemo(
@@ -1081,6 +1091,138 @@ export default function Home() {
     setTrainDistance(getClosestRouteDistance(trainRoute, getSvgPoint(svg, event)));
   };
 
+  const startMobileSheetDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
+    const sheet = event.currentTarget.closest<HTMLElement>(".mobile-sheet");
+    if (!sheet) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    sheet.classList.add("is-dragging");
+    sheet.style.setProperty("--sheet-drag-y", "0px");
+    mobileSheetDragRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      lastY: event.clientY,
+      lastTime: performance.now(),
+      velocityY: 0,
+      sheet
+    };
+  };
+
+  const updateMobileSheetDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = mobileSheetDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    const now = performance.now();
+    const elapsed = Math.max(1, now - drag.lastTime);
+    const nextVelocity = (event.clientY - drag.lastY) / elapsed;
+    drag.velocityY = drag.velocityY * 0.55 + nextVelocity * 0.45;
+    drag.lastY = event.clientY;
+    drag.lastTime = now;
+    const dragY = Math.max(0, event.clientY - drag.startY);
+    drag.sheet.style.setProperty("--sheet-drag-y", `${dragY}px`);
+  };
+
+  const finishMobileSheetDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = mobileSheetDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    mobileSheetDragRef.current = null;
+    const dragY = Math.max(0, event.clientY - drag.startY);
+    const dismissDistance = Math.min(160, drag.sheet.offsetHeight * 0.22);
+    const shouldDismiss = dragY >= dismissDistance || (dragY > 28 && drag.velocityY > 0.65);
+
+    drag.sheet.classList.remove("is-dragging");
+    if (shouldDismiss) {
+      setMobilePanel(null);
+      window.setTimeout(() => drag.sheet.style.removeProperty("--sheet-drag-y"), 220);
+      return;
+    }
+
+    void drag.sheet.offsetHeight;
+    drag.sheet.style.setProperty("--sheet-drag-y", "0px");
+  };
+
+  const renderTrainControl = (compact = false) => (
+    <div className={`train-control${compact ? " train-control-compact" : ""}`}>
+      <button
+        className={trainRunning ? "active-tool" : ""}
+        onClick={() => {
+          setShowTrain(true);
+          if (trainRunning) {
+            setTrainRunning(false);
+            setTrainStopReason("使用者手動暫停");
+            appendTrainDebugEvent(
+              "train paused",
+              `manual pause at=${formatTrainPose(sampleTrainRoute(trainRoute, trainDistance))}`
+            );
+          } else {
+            terminalStopReportedRef.current = false;
+            setTrainStopReason("行駛中");
+            setTrainRunning(true);
+            appendTrainDebugEvent(
+              "train started",
+              `speed=${trainSpeed} mm/s; direction=${trainDirection === 1 ? "right" : "left"}; at=${formatTrainPose(sampleTrainRoute(trainRoute, trainDistance))}`
+            );
+          }
+        }}
+        disabled={trainRoute.totalLength <= 0}
+        aria-label={trainRunning ? "暫停列車" : "啟動列車"}
+        title={trainRunning ? "暫停列車" : "啟動列車"}
+      >
+        {trainRunning ? <Pause size={16} /> : <Play size={16} />}
+        {!compact ? (trainRunning ? "暫停" : "行駛") : null}
+      </button>
+      <button
+        className={showTrain ? "active-tool" : ""}
+        onClick={() => setShowTrain((visible) => !visible)}
+        aria-label={showTrain ? "隱藏列車" : "顯示列車"}
+        aria-pressed={showTrain}
+        title={showTrain ? "隱藏列車" : "顯示列車"}
+      >
+        {showTrain ? <Eye size={16} /> : <EyeOff size={16} />}
+        {!compact ? (showTrain ? "列車" : "已隱藏") : null}
+      </button>
+      <select
+        value={trainSpeed}
+        onChange={(event) => {
+          const speed = Number(event.target.value);
+          setTrainSpeed(speed);
+          appendTrainDebugEvent("speed changed", `${speed} mm/s`);
+        }}
+        aria-label="列車速度"
+        title="列車速度"
+      >
+        <option value={80}>慢速</option>
+        <option value={160}>標準</option>
+        <option value={320}>快速</option>
+        <option value={640}>超快速</option>
+        <option value={1280}>超急速</option>
+      </select>
+      <div className="train-direction-control" role="group" aria-label="列車行駛方向">
+        <button
+          className={trainDirection === -1 ? "active" : ""}
+          type="button"
+          onClick={() => changeTrainDirection(-1)}
+          aria-pressed={trainDirection === -1}
+          title="向左行駛"
+        >
+          <ArrowLeft size={15} />
+          {!compact ? "向左" : null}
+        </button>
+        <button
+          className={trainDirection === 1 ? "active" : ""}
+          type="button"
+          onClick={() => changeTrainDirection(1)}
+          aria-pressed={trainDirection === 1}
+          title="向右行駛"
+        >
+          {!compact ? "向右" : null}
+          <ArrowRight size={15} />
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <main className={`app-shell ${viewMode === "3d" ? "app-shell-3d" : ""}`}>
       {mobilePanel ? (
@@ -1093,7 +1235,13 @@ export default function Home() {
       ) : null}
 
       {viewMode === "2d" ? <aside className={`sidebar mobile-sheet ${mobilePanel === "library" ? "is-open" : ""}`}>
-        <div className="mobile-sheet-header">
+        <div
+          className="mobile-sheet-header"
+          onPointerDown={startMobileSheetDrag}
+          onPointerMove={updateMobileSheetDrag}
+          onPointerUp={finishMobileSheetDrag}
+          onPointerCancel={finishMobileSheetDrag}
+        >
           <span className="mobile-sheet-handle" aria-hidden="true" />
           <div>
             <CircleDot size={18} />
@@ -1584,7 +1732,13 @@ export default function Home() {
       </section>
 
       <aside className={`inspector mobile-sheet ${mobilePanel === "inspector" ? "is-open" : ""}`}>
-        <div className="mobile-sheet-header">
+        <div
+          className="mobile-sheet-header"
+          onPointerDown={startMobileSheetDrag}
+          onPointerMove={updateMobileSheetDrag}
+          onPointerUp={finishMobileSheetDrag}
+          onPointerCancel={finishMobileSheetDrag}
+        >
           <span className="mobile-sheet-handle" aria-hidden="true" />
           <div>
             <Move size={18} />
@@ -1659,82 +1813,7 @@ export default function Home() {
             <Play size={17} />
             <span>列車控制</span>
           </div>
-          <div className="train-control">
-            <button
-              className={trainRunning ? "active-tool" : ""}
-              onClick={() => {
-                setShowTrain(true);
-                if (trainRunning) {
-                  setTrainRunning(false);
-                  setTrainStopReason("使用者手動暫停");
-                  appendTrainDebugEvent(
-                    "train paused",
-                    `manual pause at=${formatTrainPose(sampleTrainRoute(trainRoute, trainDistance))}`
-                  );
-                } else {
-                  terminalStopReportedRef.current = false;
-                  setTrainStopReason("行駛中");
-                  setTrainRunning(true);
-                  appendTrainDebugEvent(
-                    "train started",
-                    `speed=${trainSpeed} mm/s; direction=${trainDirection === 1 ? "right" : "left"}; at=${formatTrainPose(sampleTrainRoute(trainRoute, trainDistance))}`
-                  );
-                }
-              }}
-              disabled={trainRoute.totalLength <= 0}
-              aria-label={trainRunning ? "暫停列車" : "啟動列車"}
-            >
-              {trainRunning ? <Pause size={16} /> : <Play size={16} />}
-              {trainRunning ? "暫停" : "行駛"}
-            </button>
-            <button
-              className={showTrain ? "active-tool" : ""}
-              onClick={() => setShowTrain((visible) => !visible)}
-              aria-label={showTrain ? "隱藏列車" : "顯示列車"}
-              aria-pressed={showTrain}
-              title={showTrain ? "隱藏列車" : "顯示列車"}
-            >
-              {showTrain ? <Eye size={16} /> : <EyeOff size={16} />}
-              {showTrain ? "列車" : "已隱藏"}
-            </button>
-            <select
-              value={trainSpeed}
-              onChange={(event) => {
-                const speed = Number(event.target.value);
-                setTrainSpeed(speed);
-                appendTrainDebugEvent("speed changed", `${speed} mm/s`);
-              }}
-              aria-label="列車速度"
-            >
-              <option value={80}>慢速</option>
-              <option value={160}>標準</option>
-              <option value={320}>快速</option>
-              <option value={640}>超快速</option>
-              <option value={1280}>超急速</option>
-            </select>
-            <div className="train-direction-control" role="group" aria-label="列車行駛方向">
-              <button
-                className={trainDirection === -1 ? "active" : ""}
-                type="button"
-                onClick={() => changeTrainDirection(-1)}
-                aria-pressed={trainDirection === -1}
-                title="向左行駛"
-              >
-                <ArrowLeft size={15} />
-                向左
-              </button>
-              <button
-                className={trainDirection === 1 ? "active" : ""}
-                type="button"
-                onClick={() => changeTrainDirection(1)}
-                aria-pressed={trainDirection === 1}
-                title="向右行駛"
-              >
-                向右
-                <ArrowRight size={15} />
-              </button>
-            </div>
-          </div>
+          {renderTrainControl()}
           <p className="train-route-status">
             {trainRoute.segmentCount > 0
               ? `${trainRoute.segmentCount} 軌 · ${trainRoute.closed ? "環線" : "終點停車"}`
@@ -1884,6 +1963,13 @@ export default function Home() {
         </section>
 
       </aside>
+
+      <section
+        className="mobile-train-control"
+        aria-label={`列車控制，${trainRoute.segmentCount > 0 ? `${trainRoute.segmentCount} 軌` : "尚無可行駛路線"}`}
+      >
+        {renderTrainControl(true)}
+      </section>
 
       <nav className="mobile-dock" aria-label="Mobile workspace navigation">
         <button
